@@ -3,9 +3,44 @@ use std::error::Error;
 use crate::noop_handler;
 use crate::utils::HandlerExt;
 use crate::{HandlerResult, ModuleManager};
+use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
 use teloxide::{dispatching::DefaultKey, prelude::*, Bot};
 
-async fn message_filter(_bot: Bot, msg: Message) -> bool {
+fn can_respond_group_message(me: &User, msg: &Message) -> bool {
+    match msg.kind {
+        MessageKind::Common(MessageCommon {
+            media_kind: MediaKind::Text(ref media_text),
+            ..
+        }) => {
+            let text = media_text.text.as_str();
+            // Command message:
+            if text.starts_with("/") {
+                return true;
+            }
+            // Mention message:
+            if media_text.entities.iter().any(|ent| match &ent.kind {
+                MessageEntityKind::Mention => {
+                    let mention_username = &text[ent.offset..(ent.offset + ent.length)];
+                    if mention_username.len() < 1 {
+                        return false; // Just in case.
+                    }
+                    me.username
+                        .as_ref()
+                        .map(|n| n == &mention_username[1..])
+                        .unwrap_or(false)
+                }
+                _ => false,
+            }) {
+                return true;
+            }
+        }
+        _ => {}
+    };
+
+    return false;
+}
+
+async fn message_filter(me: Me, msg: Message) -> bool {
     let from = msg
         .from()
         .map(|u| {
@@ -17,6 +52,10 @@ async fn message_filter(_bot: Bot, msg: Message) -> bool {
             }
         })
         .unwrap_or("<unknown>".to_owned());
+
+    if !msg.chat.is_private() && !can_respond_group_message(&me.user, &msg) {
+        return false;
+    }
 
     if let Some(text) = msg.text() {
         info!("{} sent a message: {}", from, text);
