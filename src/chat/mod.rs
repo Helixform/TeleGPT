@@ -16,29 +16,22 @@ use crate::{noop_handler, HandlerResult};
 pub(crate) use session::Session;
 pub(crate) use session_mgr::SessionManager;
 
-pub(crate) async fn handle_chat_message(
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MessageText(String);
+
+async fn handle_chat_message(
     bot: Bot,
     msg: Message,
+    text: MessageText,
+    chat_id: ChatId,
     session_mgr: SessionManager,
     openai_client: OpenAIClient,
 ) -> bool {
-    let text = msg.text();
-    if text.is_none() {
-        return false;
-    }
-    let text = text.unwrap();
-
-    let chat_id = msg.chat.id.to_string();
-
-    // Handle reset operation.
-    if text == "/reset" {
-        session_mgr.reset_session(chat_id.to_string());
-        let _ = bot.send_message(chat_id, "⚠ 会话已重置").await;
-        return true;
-    }
+    let text = text.0;
+    let chat_id = chat_id.to_string();
 
     // Send a progress indicator message first.
-    let mut send_progress_msg = bot.send_message(chat_id.clone(), "_");
+    let mut send_progress_msg = bot.send_message(chat_id.clone(), ".");
     send_progress_msg.reply_to_message_id = Some(msg.id);
     let sent_progress_msg = send_progress_msg.await;
     if sent_progress_msg.is_err() {
@@ -59,9 +52,35 @@ pub(crate) async fn handle_chat_message(
         .unwrap();
     msgs.push(user_msg.clone());
 
-    // Send the request to OpenAI and reply to user.
-    let reply = match request_chat_model(&openai_client, msgs).await {
-        Ok(text) => {
+    // Send request to OpenAI while playing a progress animation.
+    let reply_result = tokio::select! {
+        _ = async {
+            let mut current_text = ".".to_owned();
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                current_text.push_str(" .");
+                let _ = bot.edit_message_text(
+                    chat_id.clone(),
+                    sent_progress_msg.id,
+                    &current_text
+                ).await;
+            }
+        } => { unreachable!() },
+        reply_result = request_chat_model(&openai_client, msgs) => {
+            // WORKAROUND:
+            // I had to use `Option` here to avoid a strange ICE...
+            if reply_result.is_err() {
+                error!("Failed to request OpenAI: {}", reply_result.unwrap_err());
+                None
+            } else {
+                Some(reply_result.unwrap())
+            }
+        }
+    };
+
+    // Reply to the user and add to history.
+    let reply = match reply_result {
+        Some(text) => {
             session_mgr.add_message_to_session(chat_id.clone(), user_msg);
             session_mgr.add_message_to_session(
                 chat_id.clone(),
@@ -73,14 +92,11 @@ pub(crate) async fn handle_chat_message(
             );
             text
         }
-        Err(err) => {
-            error!("Failed to request OpenAI: {}", err);
-            "哎呀，出错了".to_owned()
-        }
+        None => "Hmm, something went wrong...".to_owned(),
     };
 
     match bot
-        .edit_message_text(chat_id, sent_progress_msg.id, &reply)
+        .edit_message_text(chat_id, sent_progress_msg.id, reply)
         .await
     {
         Err(err) => {
@@ -90,6 +106,12 @@ pub(crate) async fn handle_chat_message(
     }
 
     true
+}
+
+async fn reset_session(bot: Bot, chat_id: ChatId, session_mgr: SessionManager) -> HandlerResult {
+    session_mgr.reset_session(chat_id.to_string());
+    let _ = bot.send_message(chat_id, "⚠ 会话已重置").await;
+    Ok(())
 }
 
 async fn request_chat_model(
@@ -112,6 +134,11 @@ async fn request_chat_model(
     Ok(choices.remove(0).message.content)
 }
 
+fn filter_command(cmd: &str) -> impl Fn(MessageText) -> bool {
+    let pat = format!("/{}", cmd);
+    move |text| text.0 == pat
+}
+
 pub(crate) struct Chat;
 
 impl Module for Chat {
@@ -123,6 +150,9 @@ impl Module for Chat {
     fn handler_chain(
         &self,
     ) -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription> {
-        dptree::filter_async(handle_chat_message).endpoint(noop_handler)
+        dptree::filter_map(|msg: Message| msg.text().map(|text| MessageText(text.to_owned())))
+            .map(|msg: Message| msg.chat.id)
+            .branch(dptree::filter(filter_command("reset")).endpoint(reset_session))
+            .branch(dptree::filter_async(handle_chat_message).endpoint(noop_handler))
     }
 }
