@@ -10,6 +10,7 @@ use async_openai::types::{
 use async_openai::Client as OpenAIClient;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
+use teloxide::types::BotCommand;
 
 use crate::module_mgr::Module;
 use crate::{noop_handler, HandlerResult};
@@ -30,10 +31,16 @@ async fn handle_chat_message(
     let text = text.0;
     let chat_id = chat_id.to_string();
 
+    if text.starts_with("/") {
+        // Let other modules to process the command.
+        return false;
+    }
+
     // Send a progress indicator message first.
-    let mut send_progress_msg = bot.send_message(chat_id.clone(), ".");
-    send_progress_msg.reply_to_message_id = Some(msg.id);
-    let sent_progress_msg = send_progress_msg.await;
+    let sent_progress_msg = bot
+        .send_message(chat_id.clone(), ".")
+        .reply_to_message_id(msg.id)
+        .await;
     if sent_progress_msg.is_err() {
         error!(
             "Failed to send progress message: {}",
@@ -154,5 +161,9 @@ impl Module for Chat {
             .map(|msg: Message| msg.chat.id)
             .branch(dptree::filter(filter_command("reset")).endpoint(reset_session))
             .branch(dptree::filter_async(handle_chat_message).endpoint(noop_handler))
+    }
+
+    fn commands(&self) -> Vec<BotCommand> {
+        return vec![BotCommand::new("reset", "Reset the current session")];
     }
 }

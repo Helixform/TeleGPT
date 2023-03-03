@@ -1,5 +1,6 @@
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
+use teloxide::types::BotCommand;
 
 use crate::HandlerResult;
 
@@ -8,6 +9,10 @@ pub trait Module {
 
     fn handler_chain(&self)
         -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription>;
+
+    fn commands(&self) -> Vec<BotCommand> {
+        vec![]
+    }
 }
 
 pub struct ModuleManager {
