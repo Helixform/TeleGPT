@@ -127,6 +127,7 @@ async fn request_chat_model(
 ) -> Result<String, Box<dyn Error>> {
     let req = CreateChatCompletionRequestArgs::default()
         .model("gpt-3.5-turbo")
+        .temperature(0.6)
         .messages(msgs)
         .build()?;
 
