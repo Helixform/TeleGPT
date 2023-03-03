@@ -10,7 +10,7 @@ use async_openai::types::{
 use async_openai::Client as OpenAIClient;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
-use teloxide::types::BotCommand;
+use teloxide::types::{BotCommand, Me};
 
 use crate::module_mgr::Module;
 use crate::{noop_handler, HandlerResult};
@@ -142,9 +142,26 @@ async fn request_chat_model(
     Ok(choices.remove(0).message.content)
 }
 
-fn filter_command(cmd: &str) -> impl Fn(MessageText) -> bool {
+fn filter_command(cmd: &str) -> impl Fn(Me, MessageText) -> bool {
     let pat = format!("/{}", cmd);
-    move |text| text.0 == pat
+    move |me, text| {
+        if !text.0.starts_with(&pat) {
+            return false;
+        }
+
+        // When sending commands in a group, a mention suffix may be attached to
+        // the text. For example: "/reset@xxxx_bot".
+        let rest = &text.0[pat.len()..];
+        if rest.len() > 1 {
+            return me
+                .username
+                .as_ref()
+                .map(|n| n == &rest[1..])
+                .unwrap_or(false);
+        }
+
+        true
+    }
 }
 
 pub(crate) struct Chat;
