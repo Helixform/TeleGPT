@@ -1,13 +1,12 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use async_openai::types::ChatCompletionRequestMessage as Message;
 
 use super::Session;
-use crate::comp_mgr::Component;
 
 pub struct SessionManager {
-    inner: Mutex<SessionManagerInner>,
+    inner: Arc<Mutex<SessionManagerInner>>,
 }
 
 struct SessionManagerInner {
@@ -21,7 +20,7 @@ impl SessionManager {
         };
 
         Self {
-            inner: Mutex::new(inner),
+            inner: Arc::new(Mutex::new(inner)),
         }
     }
 
@@ -57,8 +56,10 @@ impl SessionManager {
     }
 }
 
-impl Component for SessionManager {
-    fn key() -> &'static str {
-        "chat::SessionManager"
+impl Clone for SessionManager {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
     }
 }

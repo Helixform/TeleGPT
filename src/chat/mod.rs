@@ -2,40 +2,26 @@ mod session;
 mod session_mgr;
 
 use std::error::Error;
-use std::sync::Arc;
 
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestMessageArgs,
     CreateChatCompletionRequestArgs, Role,
 };
 use async_openai::Client as OpenAIClient;
-use teloxide::requests::Requester;
-use teloxide::{types::Message, Bot};
+use teloxide::dispatching::DpHandlerDescription;
+use teloxide::prelude::*;
 
-use crate::{comp_mgr::Component, ComponentManager};
+use crate::module_mgr::Module;
+use crate::{noop_handler, HandlerResult};
 pub(crate) use session::Session;
 pub(crate) use session_mgr::SessionManager;
-
-pub(crate) struct OpenAIClientComponent(OpenAIClient);
-
-impl Component for OpenAIClientComponent {
-    fn key() -> &'static str {
-        "chat::OpenAIClientComponent"
-    }
-}
-
-pub(crate) fn create_openai_client() -> OpenAIClientComponent {
-    OpenAIClientComponent(OpenAIClient::new())
-}
 
 pub(crate) async fn handle_chat_message(
     bot: Bot,
     msg: Message,
-    component_mgr: Arc<ComponentManager>,
+    session_mgr: SessionManager,
+    openai_client: OpenAIClient,
 ) -> bool {
-    let session_mgr: &SessionManager = component_mgr.get_component().unwrap();
-    let openai_client: &OpenAIClientComponent = component_mgr.get_component().unwrap();
-
     let text = msg.text();
     if text.is_none() {
         return false;
@@ -74,7 +60,7 @@ pub(crate) async fn handle_chat_message(
     msgs.push(user_msg.clone());
 
     // Send the request to OpenAI and reply to user.
-    let reply = match request_chat_model(&openai_client.0, msgs).await {
+    let reply = match request_chat_model(&openai_client, msgs).await {
         Ok(text) => {
             session_mgr.add_message_to_session(chat_id.clone(), user_msg);
             session_mgr.add_message_to_session(
@@ -124,4 +110,19 @@ async fn request_chat_model(
     }
 
     Ok(choices.remove(0).message.content)
+}
+
+pub(crate) struct Chat;
+
+impl Module for Chat {
+    fn register_dependency(&self, dep_map: &mut DependencyMap) {
+        dep_map.insert(SessionManager::new());
+        dep_map.insert(OpenAIClient::new());
+    }
+
+    fn handler_chain(
+        &self,
+    ) -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription> {
+        dptree::filter_async(handle_chat_message).endpoint(noop_handler)
+    }
 }
