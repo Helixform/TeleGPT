@@ -10,6 +10,7 @@ mod dispatcher;
 mod module_mgr;
 mod modules;
 mod utils;
+mod config;
 
 use std::error::Error;
 
