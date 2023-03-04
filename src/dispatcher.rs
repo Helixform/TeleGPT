@@ -85,10 +85,10 @@ pub(crate) fn build_dispatcher(
         let new_biz_handler = biz_handler.take().unwrap().branch(m.handler_chain());
         biz_handler.replace(new_biz_handler);
     });
-    biz_handler = biz_handler.map(|h| h.branch(dptree::endpoint(default_handler)));
-    let handler = Update::filter_message()
-        .chain(dptree::filter_async(message_filter))
-        .chain(biz_handler.unwrap())
+    let handler = dptree::entry()
+        .branch(Update::filter_message().filter_async(message_filter)) // Pre-handler for message updates.
+        .branch(biz_handler.unwrap()) // Core business handlers.
+        .branch(dptree::endpoint(default_handler)) // Fallback handler.
         .post_chain(dptree::endpoint(noop_handler)); // For future extensions.
 
     Dispatcher::builder(bot, handler)

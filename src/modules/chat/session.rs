@@ -6,6 +6,7 @@ use async_openai::types::{ChatCompletionRequestMessage as Message, Role};
 pub struct Session {
     system_message: Option<Message>,
     messages: VecDeque<Message>,
+    pending_message: Option<Message>,
 }
 
 impl Session {
@@ -13,7 +14,14 @@ impl Session {
         Self {
             system_message: None,
             messages: VecDeque::with_capacity(6),
+            pending_message: None,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.system_message = None;
+        self.messages.clear();
+        self.pending_message = None;
     }
 
     pub fn add_message(&mut self, msg: Message) {
@@ -37,6 +45,14 @@ impl Session {
             prepend.into_iter().chain(msg_iter).collect()
         } else {
             msg_iter.collect()
+        }
+    }
+
+    pub fn swap_pending_message(&mut self, msg: Option<Message>) -> Option<Message> {
+        if let Some(msg) = msg {
+            self.pending_message.replace(msg)
+        } else {
+            self.pending_message.take()
         }
     }
 }

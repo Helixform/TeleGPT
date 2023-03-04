@@ -9,5 +9,6 @@ edition = "2021"
 teloxide = { version = "0.12", features = ["macros"] }
 async-openai = "0.8"
 tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
 log = "0.4"
 pretty_env_logger = "0.4.0"
