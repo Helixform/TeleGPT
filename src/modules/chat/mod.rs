@@ -1,3 +1,4 @@
+mod braille;
 mod session;
 mod session_mgr;
 
@@ -37,8 +38,9 @@ async fn handle_chat_message(
     }
 
     // Send a progress indicator message first.
+    let progress_bar = braille::BrailleProgress::new(1, 1, 3, Some("Thinking... 🤔".to_owned()));
     let sent_progress_msg = bot
-        .send_message(chat_id.clone(), ".")
+        .send_message(chat_id.clone(), progress_bar.current_string())
         .reply_to_message_id(msg.id)
         .await;
     if sent_progress_msg.is_err() {
@@ -62,14 +64,14 @@ async fn handle_chat_message(
     // Send request to OpenAI while playing a progress animation.
     let reply_result = tokio::select! {
         _ = async {
-            let mut current_text = ".".to_owned();
+            let mut progress_bar = progress_bar;
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-                current_text.push_str(" .");
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                progress_bar.advance_progress();
                 let _ = bot.edit_message_text(
                     chat_id.clone(),
                     sent_progress_msg.id,
-                    &current_text
+                    &progress_bar.current_string()
                 ).await;
             }
         } => { unreachable!() },
