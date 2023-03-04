@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate log;
 
-mod chat;
 mod dispatcher;
 mod module_mgr;
+mod modules;
 mod utils;
 
 use std::error::Error;
@@ -11,8 +11,8 @@ use std::error::Error;
 use pretty_env_logger;
 use teloxide::{prelude::*, types::MenuButton, Bot};
 
-use chat::Chat;
 use module_mgr::ModuleManager;
+use modules::chat::Chat;
 
 pub(crate) type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
