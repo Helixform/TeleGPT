@@ -248,7 +248,7 @@ fn filter_command(cmd: &str) -> impl Fn(Me, MessageText) -> bool {
 pub(crate) struct Chat;
 
 impl Module for Chat {
-    fn register_dependency(&self, dep_map: &mut DependencyMap) {
+    fn register_dependency(&mut self, dep_map: &mut DependencyMap) {
         dep_map.insert(SessionManager::new());
         dep_map.insert(OpenAIClient::new());
     }

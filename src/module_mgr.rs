@@ -5,7 +5,7 @@ use teloxide::types::BotCommand;
 use crate::HandlerResult;
 
 pub trait Module {
-    fn register_dependency(&self, dep_map: &mut DependencyMap);
+    fn register_dependency(&mut self, dep_map: &mut DependencyMap);
 
     fn handler_chain(&self)
         -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription>;
@@ -31,12 +31,12 @@ impl ModuleManager {
         self.modules.push(Box::new(module));
     }
 
-    pub fn with_all_modules<F>(&self, mut f: F)
+    pub fn with_all_modules<F>(&mut self, mut f: F)
     where
-        F: FnMut(&dyn Module),
+        F: FnMut(&mut dyn Module),
     {
-        for module in self.modules.iter() {
-            f(module.as_ref());
+        for module in self.modules.iter_mut() {
+            f(module.as_mut());
         }
     }
 }
