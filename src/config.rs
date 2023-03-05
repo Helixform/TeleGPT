@@ -27,8 +27,15 @@ pub struct Config {
     pub openai_api_key: String,
     pub telegram_bot_token: String,
 
+    #[serde(default = "default_conversation_limit")]
+    pub conversation_limit: u64,
+
     #[serde(default)]
     pub i18n: I18nStrings,
+}
+
+fn default_conversation_limit() -> u64 {
+    20
 }
 
 #[derive(Debug, Clone, Deserialize)]
