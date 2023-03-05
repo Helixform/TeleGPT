@@ -24,19 +24,31 @@ struct MessageText(String);
 
 async fn handle_chat_message(
     bot: Bot,
+    me: Me,
     msg: Message,
     text: MessageText,
     chat_id: ChatId,
     session_mgr: SessionManager,
     openai_client: OpenAIClient,
 ) -> bool {
-    let text = text.0;
+    let mut text = text.0;
     let chat_id = chat_id.to_string();
 
     if text.starts_with("/") {
         // Let other modules to process the command.
         return false;
     }
+
+    let trimmed_text = text.trim_start();
+    if trimmed_text.starts_with("@") {
+        // Remove the leading mention to prevent the model from
+        // being affected by it.
+        let username = me.username();
+        if trimmed_text[1..].starts_with(username) {
+            text = trimmed_text[(1 + username.len())..].to_owned();
+        }
+    }
+    text = text.trim().to_owned();
 
     match actually_handle_chat_message(bot, Some(msg), text, chat_id, session_mgr, openai_client)
         .await
