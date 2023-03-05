@@ -1,4 +1,5 @@
 use teloxide::prelude::*;
+use teloxide::types::Me;
 
 pub trait HandlerExt {
     fn post_chain(self, next: Self) -> Self;
@@ -25,5 +26,33 @@ where
                 next.execute(input, cont).await
             }
         })
+    }
+}
+
+pub fn command_filter(cmd: &'static str) -> impl Fn(Message, Me) -> bool {
+    move |msg: Message, me: Me| {
+        let text = msg.text();
+        if text.is_none() {
+            return false;
+        }
+        let text = text.unwrap();
+
+        let pat = format!("/{}", cmd);
+        if !text.starts_with(&pat) {
+            return false;
+        }
+
+        // When sending commands in a group, a mention suffix may be attached to
+        // the text. For example: "/reset@xxxx_bot".
+        let rest = &text[pat.len()..];
+        if rest.len() > 1 {
+            return me
+                .username
+                .as_ref()
+                .map(|n| n == &rest[1..])
+                .unwrap_or(false);
+        }
+
+        true
     }
 }
