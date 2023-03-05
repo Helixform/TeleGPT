@@ -73,7 +73,7 @@ async fn default_handler(upd: Update) -> HandlerResult {
 
 pub(crate) fn build_dispatcher(
     bot: Bot,
-    module_mgr: ModuleManager,
+    mut module_mgr: ModuleManager,
 ) -> Dispatcher<Bot, Box<dyn Error + Send + Sync + 'static>, DefaultKey> {
     // Load dependencies.
     let mut dep_map = DependencyMap::new();
