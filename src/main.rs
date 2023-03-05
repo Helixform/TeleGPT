@@ -5,15 +5,16 @@ extern crate log;
 #[macro_use]
 extern crate anyhow;
 
+mod config;
 mod database;
 mod dispatcher;
 mod module_mgr;
 mod modules;
 mod utils;
-mod config;
 
 use std::error::Error;
 
+use clap::Parser;
 use pretty_env_logger;
 use teloxide::{prelude::*, types::MenuButton, Bot};
 
@@ -43,8 +44,16 @@ async fn init_bot(module_mgr: &mut ModuleManager) -> Result<Bot, Box<dyn Error +
     Ok(bot)
 }
 
+#[derive(Parser)]
+pub struct Args {
+    #[arg(short = 'c', long = "config")]
+    pub config_path: String,
+}
+
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+
     pretty_env_logger::formatted_timed_builder()
         .filter_level(log::LevelFilter::Info)
         .init();
