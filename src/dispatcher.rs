@@ -54,7 +54,7 @@ async fn message_filter(me: Me, msg: Message) -> bool {
         .unwrap_or("<unknown>".to_owned());
 
     if !msg.chat.is_private() && !can_respond_group_message(&me.user, &msg) {
-        return false;
+        return true;
     }
 
     if let Some(text) = msg.text() {
@@ -63,11 +63,11 @@ async fn message_filter(me: Me, msg: Message) -> bool {
         info!("{} sent a message: {:#?}", from, msg.kind);
     }
 
-    true
+    false
 }
 
-async fn default_handler(msg: Message) -> HandlerResult {
-    warn!("Message ({}) is not handled!", msg.id);
+async fn default_handler(upd: Update) -> HandlerResult {
+    warn!("Update ({}) is not handled!", upd.id);
     Ok(())
 }
 
@@ -86,7 +86,11 @@ pub(crate) fn build_dispatcher(
         biz_handler.replace(new_biz_handler);
     });
     let handler = dptree::entry()
-        .branch(Update::filter_message().filter_async(message_filter)) // Pre-handler for message updates.
+        .branch(
+            Update::filter_message()
+                .filter_async(message_filter)
+                .endpoint(noop_handler),
+        ) // Pre-handler and filter for message updates.
         .branch(biz_handler.unwrap()) // Core business handlers.
         .branch(dptree::endpoint(default_handler)) // Fallback handler.
         .post_chain(dptree::endpoint(noop_handler)); // For future extensions.
