@@ -32,7 +32,7 @@ impl Session {
             return;
         }
 
-        if self.messages.len() >= 20 {
+        if self.messages.len() >= 30 {
             self.messages.pop_front();
         }
         self.messages.push_back(msg);
