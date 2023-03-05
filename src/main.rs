@@ -46,7 +46,7 @@ async fn init_bot(module_mgr: &mut ModuleManager) -> Result<Bot, Box<dyn Error +
 
 #[derive(Parser)]
 pub struct Args {
-    #[arg(short = 'c', long = "config")]
+    #[arg(short = 'c', long = "config", default_value = "telegpt.config.json")]
     pub config_path: String,
 }
 
