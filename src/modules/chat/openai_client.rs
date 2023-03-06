@@ -9,8 +9,8 @@ pub(crate) struct ChatModelResult {
     pub token_usage: u32,
 }
 
-pub(crate) fn new_client() -> OpenAIClient {
-    OpenAIClient::new()
+pub(crate) fn new_client(api_key: &str) -> OpenAIClient {
+    OpenAIClient::new().with_api_key(api_key)
 }
 
 pub(crate) async fn request_chat_model(
