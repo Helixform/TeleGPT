@@ -2,19 +2,23 @@ use std::collections::VecDeque;
 
 use async_openai::types::{ChatCompletionRequestMessage as Message, Role};
 
+use crate::config::SharedConfig;
+
 #[derive(Debug)]
 pub struct Session {
     system_message: Option<Message>,
     messages: VecDeque<Message>,
     pending_message: Option<Message>,
+    config: SharedConfig,
 }
 
 impl Session {
-    pub fn new() -> Self {
+    pub fn new(config: SharedConfig) -> Self {
         Self {
             system_message: None,
             messages: VecDeque::with_capacity(6),
             pending_message: None,
+            config,
         }
     }
 
@@ -32,7 +36,7 @@ impl Session {
             return;
         }
 
-        if self.messages.len() >= 30 {
+        if self.messages.len() >= (self.config.conversation_limit as usize) {
             self.messages.pop_front();
         }
         self.messages.push_back(msg);

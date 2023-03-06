@@ -3,18 +3,20 @@ mod openai_client;
 mod session;
 mod session_mgr;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_openai::types::{ChatCompletionRequestMessageArgs, Role};
 use async_openai::Client as OpenAIClient;
 use teloxide::dispatching::DpHandlerDescription;
+use teloxide::dptree::di::DependencySupplier;
 use teloxide::prelude::*;
 use teloxide::types::{BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Me};
 
+use crate::config::SharedConfig;
 use crate::module_mgr::Module;
 use crate::utils::dptree_ext;
-use crate::StatsManager;
-use crate::{noop_handler, HandlerResult};
+use crate::{noop_handler, HandlerResult, StatsManager};
 pub(crate) use session::Session;
 pub(crate) use session_mgr::SessionManager;
 
@@ -30,6 +32,7 @@ async fn handle_chat_message(
     session_mgr: SessionManager,
     stats_mgr: StatsManager,
     openai_client: OpenAIClient,
+    config: SharedConfig,
 ) -> bool {
     let mut text = text.0;
     let chat_id = chat_id.to_string();
@@ -58,6 +61,7 @@ async fn handle_chat_message(
         session_mgr,
         stats_mgr,
         openai_client,
+        config,
     )
     .await
     {
@@ -76,6 +80,7 @@ async fn handle_retry_action(
     session_mgr: SessionManager,
     stats_mgr: StatsManager,
     openai_client: OpenAIClient,
+    config: SharedConfig,
 ) -> bool {
     if !query.data.map(|data| data == "/retry").unwrap_or(false) {
         return false;
@@ -111,6 +116,7 @@ async fn handle_retry_action(
         session_mgr,
         stats_mgr,
         openai_client,
+        config,
     )
     .await
     {
@@ -131,6 +137,7 @@ async fn actually_handle_chat_message(
     session_mgr: SessionManager,
     stats_mgr: StatsManager,
     openai_client: OpenAIClient,
+    config: SharedConfig,
 ) -> HandlerResult {
     // Send a progress indicator message first.
     let progress_bar = braille::BrailleProgress::new(1, 1, 3, Some("Thinking... 🤔".to_owned()));
@@ -164,7 +171,7 @@ async fn actually_handle_chat_message(
         reply_result = openai_client::request_chat_model(&openai_client, msgs) => {
             reply_result.map_err(|err| anyhow!("API error: {}", err))
         },
-        _ = tokio::time::sleep(Duration::from_secs(30)) => {
+        _ = tokio::time::sleep(Duration::from_secs(config.openai_api_timeout)) => {
             Err(anyhow!("API timeout"))
         },
     };
@@ -204,13 +211,9 @@ async fn actually_handle_chat_message(
             session_mgr.swap_session_pending_message(chat_id.clone(), Some(user_msg));
             let retry_button = InlineKeyboardButton::callback("Retry", "/retry");
             let reply_markup = InlineKeyboardMarkup::default().append_row([retry_button]);
-            bot.edit_message_text(
-                chat_id,
-                sent_progress_msg.id,
-                "Hmm, something went wrong...",
-            )
-            .reply_markup(reply_markup)
-            .await
+            bot.edit_message_text(chat_id, sent_progress_msg.id, &config.i18n.api_error_prompt)
+                .reply_markup(reply_markup)
+                .await
         }
     };
 
@@ -221,9 +224,14 @@ async fn actually_handle_chat_message(
     Ok(())
 }
 
-async fn reset_session(bot: Bot, chat_id: ChatId, session_mgr: SessionManager) -> HandlerResult {
+async fn reset_session(
+    bot: Bot,
+    chat_id: ChatId,
+    session_mgr: SessionManager,
+    config: SharedConfig,
+) -> HandlerResult {
     session_mgr.reset_session(chat_id.to_string());
-    let _ = bot.send_message(chat_id, "⚠️ Session is reset!").await;
+    let _ = bot.send_message(chat_id, &config.i18n.reset_prompt).await;
     Ok(())
 }
 
@@ -231,8 +239,10 @@ pub(crate) struct Chat;
 
 impl Module for Chat {
     fn register_dependency(&mut self, dep_map: &mut DependencyMap) {
-        dep_map.insert(SessionManager::new());
-        dep_map.insert(openai_client::new_client());
+        let config: Arc<SharedConfig> = dep_map.get();
+
+        dep_map.insert(SessionManager::new(config.as_ref().clone()));
+        dep_map.insert(openai_client::new_client(&config.openai_api_key));
     }
 
     fn handler_chain(

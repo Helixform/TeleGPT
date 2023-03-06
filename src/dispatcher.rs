@@ -1,10 +1,10 @@
-use std::error::Error;
+use anyhow::Error;
+use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
+use teloxide::{dispatching::DefaultKey, prelude::*, Bot};
 
 use crate::noop_handler;
 use crate::utils::HandlerExt;
 use crate::{HandlerResult, ModuleManager};
-use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
-use teloxide::{dispatching::DefaultKey, prelude::*, Bot};
 
 fn can_respond_group_message(me: &User, msg: &Message) -> bool {
     match msg.kind {
@@ -74,7 +74,7 @@ async fn default_handler(upd: Update) -> HandlerResult {
 pub(crate) fn build_dispatcher(
     bot: Bot,
     mut module_mgr: ModuleManager,
-) -> Dispatcher<Bot, Box<dyn Error + Send + Sync + 'static>, DefaultKey> {
+) -> Dispatcher<Bot, Error, DefaultKey> {
     // Load dependencies.
     let mut dep_map = DependencyMap::new();
     module_mgr.with_all_modules(|m| m.register_dependency(&mut dep_map));

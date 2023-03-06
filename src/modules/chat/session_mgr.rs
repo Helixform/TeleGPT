@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use async_openai::types::ChatCompletionRequestMessage as Message;
 
 use super::Session;
+use crate::config::SharedConfig;
 
 pub struct SessionManager {
     inner: Arc<Mutex<SessionManagerInner>>,
@@ -11,12 +12,14 @@ pub struct SessionManager {
 
 struct SessionManagerInner {
     sessions: HashMap<String, Session>,
+    config: SharedConfig,
 }
 
 impl SessionManager {
-    pub fn new() -> Self {
+    pub fn new(config: SharedConfig) -> Self {
         let inner = SessionManagerInner {
             sessions: HashMap::new(),
+            config,
         };
 
         Self {
@@ -63,7 +66,10 @@ impl SessionManager {
         F: FnOnce(&mut Session) -> R,
     {
         self.with_mut_inner(|inner| {
-            let session_mut = inner.sessions.entry(key).or_insert(Session::new());
+            let session_mut = inner
+                .sessions
+                .entry(key)
+                .or_insert(Session::new(inner.config.clone()));
             f(session_mut)
         })
     }
