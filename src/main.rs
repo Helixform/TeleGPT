@@ -5,6 +5,7 @@ extern crate log;
 #[macro_use]
 extern crate anyhow;
 
+mod database;
 mod dispatcher;
 mod module_mgr;
 mod modules;
@@ -15,9 +16,10 @@ use std::error::Error;
 use pretty_env_logger;
 use teloxide::{prelude::*, types::MenuButton, Bot};
 
+use crate::database::InMemDatabaseProvider;
 use module_mgr::ModuleManager;
 use modules::chat::Chat;
-use modules::stats::{db_provider::InMemDatabaseProvider, Stats, StatsManager};
+use modules::stats::{Stats, StatsManager};
 
 pub(crate) type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
@@ -48,8 +50,10 @@ async fn main() {
 
     info!("Bot is starting...");
 
-    info!("Initializing StatsManager...");
-    let stats_mgr = match StatsManager::with_db_provider(InMemDatabaseProvider).await {
+    info!("Initializing DatabaseManager...");
+    let db_mgr = database::DatabaseManager::with_db_provider(InMemDatabaseProvider).unwrap();
+
+    let stats_mgr = match StatsManager::with_db_manager(db_mgr).await {
         Ok(stats_mgr) => stats_mgr,
         Err(err) => {
             error!("Failed to init StatsManager: {}", err);

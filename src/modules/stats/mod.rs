@@ -1,4 +1,3 @@
-pub(crate) mod db_provider;
 mod stats_mgr;
 
 use std::fmt::Write;
@@ -10,7 +9,6 @@ use teloxide::types::BotCommand;
 use crate::module_mgr::Module;
 use crate::utils::dptree_ext;
 use crate::HandlerResult;
-pub(crate) use db_provider::DatabaseProvider;
 pub(crate) use stats_mgr::StatsManager;
 
 pub(crate) struct Stats {
@@ -28,10 +26,12 @@ impl Stats {
 async fn handle_show_stats(bot: Bot, msg: Message, stats_mgr: StatsManager) -> HandlerResult {
     let mut reply_text = String::new();
     if let Some(from_username) = msg.from().and_then(|u| u.username.as_ref()) {
-        let user_usage = stats_mgr.query_usage(Some(from_username.to_owned())).await;
+        let user_usage = stats_mgr
+            .query_usage(Some(from_username.to_owned()))
+            .await?;
         write!(&mut reply_text, "Your token usage: {}\n", user_usage)?;
     }
-    let total_usage = stats_mgr.query_usage(None).await;
+    let total_usage = stats_mgr.query_usage(None).await?;
     write!(&mut reply_text, "Total token usage: {}", total_usage)?;
 
     bot.send_message(msg.chat.id, reply_text)

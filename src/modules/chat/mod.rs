@@ -188,9 +188,12 @@ async fn actually_handle_chat_message(
                 .and_then(|m| m.from())
                 .and_then(|u| u.username.as_ref())
             {
-                stats_mgr
+                let res = stats_mgr
                     .add_usage(from_username.to_owned(), res.token_usage as _)
                     .await;
+                if let Err(err) = res {
+                    error!("Failed to update stats: {}", err);
+                }
             }
             // TODO: add retry for edit failures.
             bot.edit_message_text(chat_id, sent_progress_msg.id, reply_text)
