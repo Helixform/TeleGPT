@@ -143,20 +143,24 @@ impl DatabaseThread {
 
     async fn run_loop(&mut self) {
         while !self.shutdown {
-            tokio::select! {
-                _ = self.shutdown_notify.notified() => {
-                    self.shutdown = true;
-                },
-                maybe_work = self.work_rx.recv() => {
-                    if let Some(mut work) = maybe_work {
-                        work.perform(&mut self.conn);
-                    } else {
-                        // No more work to perform, the thread is requested to terminate.
-                        return;
-                    }
-                }
-            };
+            self.poll_once().await;
         }
+    }
+
+    async fn poll_once(&mut self) {
+        tokio::select! {
+            _ = self.shutdown_notify.notified() => {
+                self.shutdown = true;
+            },
+            maybe_work = self.work_rx.recv() => {
+                if let Some(mut work) = maybe_work {
+                    work.perform(&mut self.conn);
+                } else {
+                    // No more work to perform, the thread is requested to terminate.
+                    self.shutdown = true;
+                }
+            }
+        };
     }
 }
 

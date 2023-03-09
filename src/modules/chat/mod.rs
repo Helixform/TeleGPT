@@ -13,10 +13,10 @@ use teloxide::dptree::di::DependencySupplier;
 use teloxide::prelude::*;
 use teloxide::types::{BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Me};
 
-use crate::config::SharedConfig;
-use crate::module_mgr::Module;
-use crate::utils::dptree_ext;
-use crate::{noop_handler, HandlerResult, StatsManager};
+use crate::{
+    config::SharedConfig, dispatcher::noop_handler, module_mgr::Module,
+    modules::stats::StatsManager, types::HandlerResult, utils::dptree_ext,
+};
 pub(crate) use session::Session;
 pub(crate) use session_mgr::SessionManager;
 

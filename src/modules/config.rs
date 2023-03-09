@@ -1,7 +1,7 @@
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
 
-use crate::{config::SharedConfig, module_mgr::Module, HandlerResult};
+use crate::{config::SharedConfig, module_mgr::Module, types::HandlerResult};
 
 pub(crate) struct Config {
     config: Option<SharedConfig>,

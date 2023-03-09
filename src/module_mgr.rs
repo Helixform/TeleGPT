@@ -1,14 +1,12 @@
-use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
 use teloxide::types::BotCommand;
 
-use crate::HandlerResult;
+use crate::types::TeloxideHandler;
 
 pub trait Module {
     fn register_dependency(&mut self, dep_map: &mut DependencyMap);
 
-    fn handler_chain(&self)
-        -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription>;
+    fn handler_chain(&self) -> TeloxideHandler;
 
     fn commands(&self) -> Vec<BotCommand> {
         vec![]

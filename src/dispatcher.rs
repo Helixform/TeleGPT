@@ -1,10 +1,11 @@
-use anyhow::Error;
+use teloxide::prelude::*;
 use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
-use teloxide::{dispatching::DefaultKey, prelude::*, Bot};
 
-use crate::noop_handler;
-use crate::utils::HandlerExt;
-use crate::{HandlerResult, ModuleManager};
+use crate::{
+    module_mgr::ModuleManager,
+    types::{HandlerResult, TeloxideDispatcher},
+    utils::HandlerExt,
+};
 
 fn can_respond_group_message(me: &User, msg: &Message) -> bool {
     match msg.kind {
@@ -58,9 +59,9 @@ async fn message_filter(me: Me, msg: Message) -> bool {
     }
 
     if let Some(text) = msg.text() {
-        info!("{} sent a message: {}", from, text);
+        debug!("{} sent a message: {}", from, text);
     } else {
-        info!("{} sent a message: {:#?}", from, msg.kind);
+        debug!("{} sent a message: {:#?}", from, msg.kind);
     }
 
     false
@@ -71,10 +72,11 @@ async fn default_handler(upd: Update) -> HandlerResult {
     Ok(())
 }
 
-pub(crate) fn build_dispatcher(
-    bot: Bot,
-    mut module_mgr: ModuleManager,
-) -> Dispatcher<Bot, Error, DefaultKey> {
+pub(crate) async fn noop_handler() -> HandlerResult {
+    Ok(())
+}
+
+pub(crate) fn build_dispatcher(bot: Bot, mut module_mgr: ModuleManager) -> TeloxideDispatcher {
     // Load dependencies.
     let mut dep_map = DependencyMap::new();
     module_mgr.with_all_modules(|m| m.register_dependency(&mut dep_map));

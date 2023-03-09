@@ -6,9 +6,7 @@ use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
 use teloxide::types::BotCommand;
 
-use crate::module_mgr::Module;
-use crate::utils::dptree_ext;
-use crate::HandlerResult;
+use crate::{module_mgr::Module, types::HandlerResult, utils::dptree_ext};
 pub(crate) use stats_mgr::StatsManager;
 
 pub(crate) struct Stats {
