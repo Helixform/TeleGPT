@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::mem::ManuallyDrop;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread::{Builder as ThreadBuilder, JoinHandle};
 
@@ -18,6 +19,28 @@ pub(crate) struct InMemDatabaseProvider;
 impl DatabaseProvider for InMemDatabaseProvider {
     fn provide_db(&self) -> Result<Connection, Error> {
         let conn = Connection::open_in_memory()?;
+        Ok(conn)
+    }
+}
+
+pub(crate) struct FileDatabaseProvider {
+    path: PathBuf,
+}
+
+impl FileDatabaseProvider {
+    pub fn new<P>(path: P) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self {
+            path: path.as_ref().to_owned(),
+        }
+    }
+}
+
+impl DatabaseProvider for FileDatabaseProvider {
+    fn provide_db(&self) -> Result<Connection, Error> {
+        let conn = Connection::open(&self.path)?;
         Ok(conn)
     }
 }

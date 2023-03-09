@@ -3,7 +3,7 @@ use teloxide::{prelude::*, types::MenuButton};
 
 use crate::{
     config::{Config, SharedConfig},
-    database::{DatabaseManager, InMemDatabaseProvider},
+    database::{DatabaseManager, FileDatabaseProvider, InMemDatabaseProvider},
     dispatcher::build_dispatcher,
     module_mgr::ModuleManager,
     modules::chat::Chat,
@@ -28,7 +28,12 @@ async fn init_bot(config: &Config, module_mgr: &mut ModuleManager) -> Result<Bot
 
 pub async fn run(config: SharedConfig) {
     debug!("Initializing database...");
-    let db_mgr = DatabaseManager::with_db_provider(InMemDatabaseProvider).unwrap();
+    let db_mgr = if let Some(database_path) = &config.database_path {
+        DatabaseManager::with_db_provider(FileDatabaseProvider::new(database_path))
+    } else {
+        DatabaseManager::with_db_provider(InMemDatabaseProvider)
+    }
+    .unwrap();
 
     debug!("Initializing modules...");
     let mut module_mgr = ModuleManager::new();

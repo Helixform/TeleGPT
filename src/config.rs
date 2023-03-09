@@ -37,6 +37,9 @@ pub struct Config {
     #[serde(default = "default_conversation_limit", rename = "conversationLimit")]
     pub conversation_limit: u64,
 
+    #[serde(rename = "databasePath")]
+    pub database_path: Option<String>,
+
     #[serde(default)]
     pub i18n: I18nStrings,
 }
