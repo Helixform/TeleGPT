@@ -3,7 +3,14 @@ name = "telegpt"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "telegpt_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "telegpt"
+path = "src/main.rs"
+doc = false
 
 [dependencies]
 teloxide = { version = "0.12", features = ["macros"] }

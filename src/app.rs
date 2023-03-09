@@ -1,3 +1,9 @@
+//! The entry of the bot application.
+//!
+//! You normally don't use this crate directly. Instead, you run the binary
+//! to use the bot. When integrating the bot into other programs, invoke
+//! [`run`] function to start the bot server.
+
 use anyhow::Error;
 use teloxide::{prelude::*, types::MenuButton};
 
@@ -26,6 +32,8 @@ async fn init_bot(config: &Config, module_mgr: &mut ModuleManager) -> Result<Bot
     Ok(bot)
 }
 
+/// Starts bot server and blocks the caller until the bot is requested
+/// to shutdown.
 pub async fn run(config: SharedConfig) {
     debug!("Initializing database...");
     let db_mgr = if let Some(database_path) = &config.database_path {

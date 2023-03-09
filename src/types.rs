@@ -1,3 +1,5 @@
+#![doc(hidden)]
+
 use anyhow::Error;
 use teloxide::dispatching::DefaultKey;
 use teloxide::dispatching::DpHandlerDescription;

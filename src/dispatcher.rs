@@ -1,3 +1,5 @@
+#![doc(hidden)]
+
 use teloxide::prelude::*;
 use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
 

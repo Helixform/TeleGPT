@@ -1,25 +1,11 @@
-#![feature(fn_traits)]
-
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate anyhow;
-
-mod app;
-mod config;
-mod database;
-mod dispatcher;
-mod module_mgr;
-mod modules;
-mod types;
-mod utils;
 
 use std::fs;
 
 use anyhow::Error;
 use clap::Parser;
-
-use config::SharedConfig;
+use telegpt_core::{app, config::SharedConfig};
 
 fn init_config(config_path: &str) -> Result<SharedConfig, Error> {
     let config_buf = fs::read(config_path)?;
@@ -29,7 +15,7 @@ fn init_config(config_path: &str) -> Result<SharedConfig, Error> {
 }
 
 #[derive(Parser)]
-pub struct Args {
+struct Args {
     #[arg(short = 'c', long = "config", default_value = "telegpt.config.json")]
     pub config_path: String,
 }

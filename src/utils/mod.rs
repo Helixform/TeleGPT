@@ -1,3 +1,5 @@
+#![doc(hidden)]
+
 pub(crate) mod dptree_ext;
 
 #[allow(unused_imports)]

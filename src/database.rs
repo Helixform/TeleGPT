@@ -1,3 +1,5 @@
+#![doc(hidden)]
+
 use std::fmt::Debug;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
