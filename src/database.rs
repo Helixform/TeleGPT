@@ -5,7 +5,9 @@ use std::thread::{Builder as ThreadBuilder, JoinHandle};
 
 use anyhow::Error;
 use rusqlite::Connection;
+use tokio::runtime::Handle;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::Notify;
 
 pub(crate) trait DatabaseProvider {
     fn provide_db(&self) -> Result<Connection, Error>;
@@ -30,15 +32,19 @@ impl DatabaseManager {
         P: DatabaseProvider,
     {
         let conn = provider.provide_db()?;
-        let (cmd_tx, cmd_rx) = channel(10);
+        let (work_tx, work_rx) = channel(10);
+        let shutdown_notify = Arc::new(Notify::new());
 
-        let db_thread = DatabaseThread::new(conn, cmd_rx);
+        let rt_handle = Handle::current().clone();
+
+        let db_thread = DatabaseThread::new(conn, rt_handle, work_rx, Arc::clone(&shutdown_notify));
         let join_handle = ManuallyDrop::new(db_thread.start());
 
         Ok(Self {
             inner: Arc::new(DatabaseManagerInner {
                 join_handle,
-                cmd_tx,
+                work_tx,
+                shutdown_notify,
             }),
         })
     }
@@ -47,10 +53,10 @@ impl DatabaseManager {
     where
         F: FnOnce(&mut Connection) + Send + 'static,
     {
-        let work = AnyDatabaseThreadWork::new_boxed(f);
+        let work = AnyDatabaseThreadWork::new(f);
         self.inner
-            .cmd_tx
-            .send(DatabaseThreadCommand::Work(work))
+            .work_tx
+            .send(Box::new(work))
             .await
             .map_err(|err| anyhow!(err.to_string()))?;
 
@@ -83,30 +89,41 @@ impl Clone for DatabaseManager {
 
 struct DatabaseManagerInner {
     join_handle: ManuallyDrop<JoinHandle<()>>,
-    cmd_tx: Sender<DatabaseThreadCommand>,
+    work_tx: Sender<Box<dyn DatabaseThreadWork>>,
+    shutdown_notify: Arc<Notify>,
 }
 
 impl Drop for DatabaseManagerInner {
     fn drop(&mut self) {
-        self.cmd_tx
-            .blocking_send(DatabaseThreadCommand::Shutdown)
-            .unwrap();
+        // Gracefully shutdown the database thread.
+        self.shutdown_notify.notify_one();
         let join_handle = unsafe { ManuallyDrop::take(&mut self.join_handle) };
         join_handle.join().unwrap();
+
+        debug!("Database thread has shutdown");
     }
 }
 
 struct DatabaseThread {
     conn: Connection,
-    cmd_rx: Receiver<DatabaseThreadCommand>,
+    rt_handle: Handle,
+    work_rx: Receiver<Box<dyn DatabaseThreadWork>>,
+    shutdown_notify: Arc<Notify>,
     shutdown: bool,
 }
 
 impl DatabaseThread {
-    fn new(conn: Connection, cmd_rx: Receiver<DatabaseThreadCommand>) -> Self {
+    fn new(
+        conn: Connection,
+        rt_handle: Handle,
+        work_rx: Receiver<Box<dyn DatabaseThreadWork>>,
+        shutdown_notify: Arc<Notify>,
+    ) -> Self {
         Self {
             conn,
-            cmd_rx,
+            rt_handle,
+            work_rx,
+            shutdown_notify,
             shutdown: false,
         }
     }
@@ -116,47 +133,29 @@ impl DatabaseThread {
             .name("DatabaseThread".to_owned())
             .spawn(move || {
                 let mut thread = self;
-                thread.thread_main()
+                let handle = thread.rt_handle.clone();
+                handle.block_on(async move {
+                    thread.run_loop().await;
+                });
             })
             .unwrap()
     }
 
-    fn thread_main(&mut self) {
-        loop {
-            if self.shutdown {
-                return;
-            }
-
-            if let Some(cmd) = self.cmd_rx.blocking_recv() {
-                self.handle_cmd(cmd);
-            } else {
-                // No more work to perform, the thread is requested to terminate.
-                return;
-            }
-        }
-    }
-
-    fn handle_cmd(&mut self, cmd: DatabaseThreadCommand) {
-        match cmd {
-            DatabaseThreadCommand::Work(mut work) => work.perform(&mut self.conn),
-            DatabaseThreadCommand::Shutdown => {
-                info!("Database thread is shutting down...");
-                self.shutdown = true
-            }
-        }
-    }
-}
-
-enum DatabaseThreadCommand {
-    Work(Box<dyn DatabaseThreadWork>),
-    Shutdown,
-}
-
-impl Debug for DatabaseThreadCommand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Work(_) => write!(f, "Work"),
-            Self::Shutdown => write!(f, "Shutdown"),
+    async fn run_loop(&mut self) {
+        while !self.shutdown {
+            tokio::select! {
+                _ = self.shutdown_notify.notified() => {
+                    self.shutdown = true;
+                },
+                maybe_work = self.work_rx.recv() => {
+                    if let Some(mut work) = maybe_work {
+                        work.perform(&mut self.conn);
+                    } else {
+                        // No more work to perform, the thread is requested to terminate.
+                        return;
+                    }
+                }
+            };
         }
     }
 }
@@ -176,8 +175,17 @@ impl<F> AnyDatabaseThreadWork<F>
 where
     F: FnOnce(&mut Connection) + Send,
 {
-    fn new_boxed(f: F) -> Box<Self> {
-        Box::new(Self { f: Some(f) })
+    fn new(f: F) -> Self {
+        Self { f: Some(f) }
+    }
+}
+
+impl<F> Debug for AnyDatabaseThreadWork<F>
+where
+    F: FnOnce(&mut Connection) + Send,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DatabaseThreadWork")
     }
 }
 
