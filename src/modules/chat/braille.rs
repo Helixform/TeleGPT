@@ -37,7 +37,7 @@ impl BrailleProgress {
     }
 
     pub fn string_for_progress(&self, current: usize) -> String {
-        let mut chars: Vec<u16> = vec![symbols::BLANK; (self.width * self.height) as usize];
+        let mut chars: Vec<u16> = vec![symbols::BLANK; self.width * self.height];
 
         let pixel_length = self.pixel_length();
 
@@ -111,7 +111,7 @@ impl BrailleProgress {
         // Add custom label string.
         if let Some(label) = &self.label {
             result.push(' ');
-            result.push_str(&label);
+            result.push_str(label);
         }
 
         result
@@ -120,9 +120,7 @@ impl BrailleProgress {
     fn pixel_length(&self) -> usize {
         let pixel_width = self.width * 2;
         let pixel_height = self.height * 4;
-        let pixel_length = (pixel_width + pixel_height - 2) * 2;
-
-        pixel_length
+        (pixel_width + pixel_height - 2) * 2
     }
 }
 

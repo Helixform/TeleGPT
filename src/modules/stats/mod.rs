@@ -27,7 +27,7 @@ async fn handle_show_stats(bot: Bot, msg: Message, stats_mgr: StatsManager) -> H
         let user_usage = stats_mgr
             .query_usage(Some(from_username.to_owned()))
             .await?;
-        write!(&mut reply_text, "Your token usage: {}\n", user_usage)?;
+        writeln!(&mut reply_text, "Your token usage: {}", user_usage)?;
     }
     let total_usage = stats_mgr.query_usage(None).await?;
     write!(&mut reply_text, "Total token usage: {}", total_usage)?;
@@ -56,9 +56,9 @@ impl Module for Stats {
     }
 
     fn commands(&self) -> Vec<BotCommand> {
-        return vec![BotCommand::new(
+        vec![BotCommand::new(
             "stats",
             "Show the token usage and other stats",
-        )];
+        )]
     }
 }

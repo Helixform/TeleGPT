@@ -60,7 +60,7 @@ impl DatabaseManager {
         let (work_tx, work_rx) = channel(10);
         let shutdown_notify = Arc::new(Notify::new());
 
-        let rt_handle = Handle::current().clone();
+        let rt_handle = Handle::current();
 
         let db_thread = DatabaseThread::new(conn, rt_handle, work_rx, Arc::clone(&shutdown_notify));
         let join_handle = ManuallyDrop::new(db_thread.start());

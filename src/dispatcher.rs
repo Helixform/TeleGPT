@@ -10,37 +10,35 @@ use crate::{
 };
 
 fn can_respond_group_message(me: &User, msg: &Message) -> bool {
-    match msg.kind {
-        MessageKind::Common(MessageCommon {
-            media_kind: MediaKind::Text(ref media_text),
-            ..
-        }) => {
-            let text = media_text.text.as_str();
-            // Command message:
-            if text.starts_with("/") {
-                return true;
-            }
-            // Mention message:
-            if media_text.entities.iter().any(|ent| match &ent.kind {
-                MessageEntityKind::Mention => {
-                    let mention_username = &text[ent.offset..(ent.offset + ent.length)];
-                    if mention_username.len() < 1 {
-                        return false; // Just in case.
-                    }
-                    me.username
-                        .as_ref()
-                        .map(|n| n == &mention_username[1..])
-                        .unwrap_or(false)
-                }
-                _ => false,
-            }) {
-                return true;
-            }
+    if let MessageKind::Common(MessageCommon {
+        media_kind: MediaKind::Text(ref media_text),
+        ..
+    }) = msg.kind
+    {
+        let text = media_text.text.as_str();
+        // Command message:
+        if text.starts_with('/') {
+            return true;
         }
-        _ => {}
-    };
+        // Mention message:
+        if media_text.entities.iter().any(|ent| match &ent.kind {
+            MessageEntityKind::Mention => {
+                let mention_username = &text[ent.offset..(ent.offset + ent.length)];
+                if mention_username.is_empty() {
+                    return false; // Just in case.
+                }
+                me.username
+                    .as_ref()
+                    .map(|n| n == &mention_username[1..])
+                    .unwrap_or(false)
+            }
+            _ => false,
+        }) {
+            return true;
+        }
+    }
 
-    return false;
+    false
 }
 
 async fn message_filter(me: Me, msg: Message) -> bool {

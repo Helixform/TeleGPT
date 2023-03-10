@@ -30,25 +30,15 @@ pub(crate) async fn request_chat_model(
     let stream = client.chat().create_stream(req).await?;
     Ok(stream
         .scan(ChatModelResult::default(), |acc, cur| {
-            let resp = cur
+            let content = cur
                 .as_ref()
                 .ok()
-                .and_then(|resp| match resp.choices.first() {
-                    Some(choice) => Some((
-                        resp.usage.as_ref().map(|u| u.total_tokens).unwrap_or(0),
-                        choice,
-                    )),
-                    _ => None,
-                });
-            if let Some(resp) = resp {
-                if let Some(content) = resp.1.delta.content.as_ref() {
-                    acc.content.push_str(content);
-                }
-                acc.token_usage += resp.0;
-                future::ready(Some(acc.clone()))
-            } else {
-                future::ready(None)
+                .and_then(|resp| resp.choices.first())
+                .and_then(|choice| choice.delta.content.as_ref());
+            if let Some(content) = content {
+                acc.content.push_str(content);
             }
+            future::ready(Some(acc.clone()))
         })
         .boxed())
 }

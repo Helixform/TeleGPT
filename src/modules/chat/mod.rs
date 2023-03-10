@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 mod braille;
 mod openai_client;
 mod session;
@@ -45,23 +47,23 @@ async fn handle_chat_message(
     let mut text = text.0;
     let chat_id = chat_id.to_string();
 
-    if text.starts_with("/") {
+    if text.starts_with('/') {
         // Let other modules to process the command.
         return false;
     }
 
     let trimmed_text = text.trim_start();
-    if trimmed_text.starts_with("@") {
+    if let Some(text_without_at) = trimmed_text.strip_prefix('@') {
         // Remove the leading mention to prevent the model from
         // being affected by it.
         let username = me.username();
-        if trimmed_text[1..].starts_with(username) {
-            text = trimmed_text[(1 + username.len())..].to_owned();
+        if let Some(text_without_mention) = text_without_at.strip_prefix(username) {
+            text = text_without_mention.to_owned();
         }
     }
     text = text.trim().to_owned();
 
-    match actually_handle_chat_message(
+    if let Err(err) = actually_handle_chat_message(
         bot,
         Some(msg),
         text,
@@ -73,10 +75,7 @@ async fn handle_chat_message(
     )
     .await
     {
-        Err(err) => {
-            error!("Failed to handle chat message: {}", err);
-        }
-        _ => {}
+        error!("Failed to handle chat message: {}", err);
     }
 
     true
@@ -100,12 +99,9 @@ async fn handle_retry_action(
     }
     let message = message.unwrap();
 
-    match bot.delete_message(message.chat.id, message.id).await {
-        Err(err) => {
-            error!("Failed to revoke the retry message: {}", err);
-            return false;
-        }
-        _ => {}
+    if let Err(err) = bot.delete_message(message.chat.id, message.id).await {
+        error!("Failed to revoke the retry message: {}", err);
+        return false;
     }
 
     let chat_id = message.chat.id.to_string();
@@ -116,7 +112,7 @@ async fn handle_retry_action(
     }
     let last_message = last_message.unwrap();
 
-    match actually_handle_chat_message(
+    if let Err(err) = actually_handle_chat_message(
         bot,
         None,
         last_message.content,
@@ -128,10 +124,7 @@ async fn handle_retry_action(
     )
     .await
     {
-        Err(err) => {
-            error!("Failed to retry handling chat message: {}", err);
-        }
-        _ => {}
+        error!("Failed to retry handling chat message: {}", err);
     }
 
     true
@@ -221,7 +214,7 @@ async fn actually_handle_chat_message(
 
 async fn stream_model_result(
     bot: &Bot,
-    chat_id: &String,
+    chat_id: &str,
     editing_msg: &Message,
     mut progress_bar: BrailleProgress,
     msgs: Vec<ChatCompletionRequestMessage>,
@@ -271,7 +264,7 @@ async fn stream_model_result(
         };
 
         let _ = bot
-            .edit_message_text(chat_id.clone(), editing_msg.id, updated_text)
+            .edit_message_text(chat_id.to_owned(), editing_msg.id, updated_text)
             .await;
     }
 
@@ -280,7 +273,7 @@ async fn stream_model_result(
         // in stream mode. Therefore we need to estimate it locally.
         last_response.token_usage =
             openai_client::estimate_tokens(&last_response.content) + estimated_prompt_tokens;
-        bot.edit_message_text(chat_id.clone(), editing_msg.id, &last_response.content)
+        bot.edit_message_text(chat_id.to_owned(), editing_msg.id, &last_response.content)
             .await?;
         return Ok(last_response);
     }
@@ -330,6 +323,6 @@ impl Module for Chat {
     }
 
     fn commands(&self) -> Vec<BotCommand> {
-        return vec![BotCommand::new("reset", "Reset the current session")];
+        vec![BotCommand::new("reset", "Reset the current session")]
     }
 }
