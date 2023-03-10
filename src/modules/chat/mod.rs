@@ -248,18 +248,6 @@ async fn stream_model_result(
                 // the latest message content.
                 last_response = res.as_ref().unwrap().last().cloned();
 
-                let content = &last_response
-                    .as_ref()
-                    .expect("The buffer should contain items")
-                    .content;
-                progress_bar.advance_progress();
-
-                let _ = bot.edit_message_text(
-                    chat_id.clone(),
-                    editing_msg.id,
-                    format!("{}\n{}", content, progress_bar.current_string())
-                ).await;
-
                 // Reset the timeout once the stream is resumed.
                 timeout_times = 0;
             },
@@ -270,6 +258,21 @@ async fn stream_model_result(
                 }
             }
         }
+
+        progress_bar.advance_progress();
+        let updated_text = if let Some(last_response) = &last_response {
+            format!(
+                "{}\n{}",
+                last_response.content,
+                progress_bar.current_string()
+            )
+        } else {
+            progress_bar.current_string()
+        };
+
+        let _ = bot
+            .edit_message_text(chat_id.clone(), editing_msg.id, updated_text)
+            .await;
     }
 
     if let Some(mut last_response) = last_response {
