@@ -1,11 +1,15 @@
-use anyhow::Error;
-use async_openai::types::{
-    ChatCompletionRequestMessage, ChatCompletionResponseMessage, CreateChatCompletionRequestArgs,
-};
-use async_openai::Client as OpenAIClient;
+use std::pin::Pin;
 
+use anyhow::Error;
+use async_openai::types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs};
+use async_openai::Client as OpenAIClient;
+use futures::{future, Stream, StreamExt};
+
+pub(crate) type ChatModelStream = Pin<Box<dyn Stream<Item = ChatModelResult> + Send>>;
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct ChatModelResult {
-    pub message: ChatCompletionResponseMessage,
+    pub content: String,
     pub token_usage: u32,
 }
 
@@ -16,22 +20,48 @@ pub(crate) fn new_client(api_key: &str) -> OpenAIClient {
 pub(crate) async fn request_chat_model(
     client: &OpenAIClient,
     msgs: Vec<ChatCompletionRequestMessage>,
-) -> Result<ChatModelResult, Error> {
+) -> Result<ChatModelStream, Error> {
     let req = CreateChatCompletionRequestArgs::default()
         .model("gpt-3.5-turbo")
         .temperature(0.6)
         .messages(msgs)
         .build()?;
 
-    let resp = client.chat().create(req).await?;
-    let mut choices = resp.choices;
+    let stream = client.chat().create_stream(req).await?;
+    Ok(stream
+        .scan(ChatModelResult::default(), |acc, cur| {
+            let resp = cur
+                .as_ref()
+                .ok()
+                .and_then(|resp| match resp.choices.first() {
+                    Some(choice) => Some((
+                        resp.usage.as_ref().map(|u| u.total_tokens).unwrap_or(0),
+                        choice,
+                    )),
+                    _ => None,
+                });
+            if let Some(resp) = resp {
+                if let Some(content) = resp.1.delta.content.as_ref() {
+                    acc.content.push_str(content);
+                }
+                acc.token_usage += resp.0;
+                future::ready(Some(acc.clone()))
+            } else {
+                future::ready(None)
+            }
+        })
+        .boxed())
+}
 
-    if choices.is_empty() {
-        return Err(anyhow!("Server responds with empty data"));
+pub(crate) fn estimate_prompt_tokens(msgs: &Vec<ChatCompletionRequestMessage>) -> u32 {
+    let mut text_len = 0;
+    for msg in msgs {
+        text_len += msg.content.len();
     }
+    ((text_len as f64) * 1.4) as _
+}
 
-    Ok(ChatModelResult {
-        message: choices.remove(0).message,
-        token_usage: resp.usage.map(|u| u.total_tokens).unwrap_or(0),
-    })
+pub(crate) fn estimate_tokens(text: &str) -> u32 {
+    let text_len = text.len();
+    ((text_len as f64) * 1.4) as _
 }

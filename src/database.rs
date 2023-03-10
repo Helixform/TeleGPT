@@ -95,7 +95,7 @@ impl DatabaseManager {
     {
         let (res_tx, res_rx) = tokio::sync::oneshot::channel();
         self.enqueue_work(move |conn| {
-            let res = f.call_once((conn,));
+            let res = f(conn);
             res_tx.send(res).unwrap();
         })
         .await?;
@@ -224,6 +224,6 @@ where
 {
     fn perform(&mut self, conn: &mut Connection) {
         let f = self.f.take().unwrap();
-        f.call_once((conn,))
+        f(conn)
     }
 }

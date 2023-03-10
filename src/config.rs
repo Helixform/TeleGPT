@@ -63,6 +63,15 @@ pub struct Config {
     #[serde(default = "default_openai_api_timeout", rename = "openaiAPITimeout")]
     pub openai_api_timeout: u64,
 
+    /// The throttle interval (in milliseconds) for sending streamed
+    /// chunks back to Telegram.
+    /// JSON key: `streamThrottleInterval`
+    #[serde(
+        default = "default_stream_throttle_interval",
+        rename = "streamThrottleInterval"
+    )]
+    pub stream_throttle_interval: u64,
+
     /// Maximum number of messages in a single conversation.
     /// JSON key: `conversationLimit`
     #[serde(default = "default_conversation_limit", rename = "conversationLimit")]
@@ -117,7 +126,8 @@ macro_rules! define_defaults {
 }
 
 define_defaults! {
-    openai_api_timeout: u64 = 30,
+    openai_api_timeout: u64 = 10,
+    stream_throttle_interval: u64 = 500,
     conversation_limit: u64 = 20,
 }
 

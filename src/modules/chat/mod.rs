@@ -6,17 +6,25 @@ mod session_mgr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use async_openai::types::{ChatCompletionRequestMessageArgs, Role};
+use anyhow::Error;
+use async_openai::types::{ChatCompletionRequestMessage, ChatCompletionRequestMessageArgs, Role};
 use async_openai::Client as OpenAIClient;
+use futures::StreamExt as FuturesStreamExt;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::dptree::di::DependencySupplier;
 use teloxide::prelude::*;
 use teloxide::types::{BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Me};
 
 use crate::{
-    config::SharedConfig, dispatcher::noop_handler, module_mgr::Module,
-    modules::stats::StatsManager, types::HandlerResult, utils::dptree_ext,
+    config::SharedConfig,
+    dispatcher::noop_handler,
+    module_mgr::Module,
+    modules::stats::StatsManager,
+    types::HandlerResult,
+    utils::{dptree_ext, StreamExt},
 };
+use braille::BrailleProgress;
+use openai_client::ChatModelResult;
 pub(crate) use session::Session;
 pub(crate) use session_mgr::SessionManager;
 
@@ -140,7 +148,7 @@ async fn actually_handle_chat_message(
     config: SharedConfig,
 ) -> HandlerResult {
     // Send a progress indicator message first.
-    let progress_bar = braille::BrailleProgress::new(1, 1, 3, Some("Thinking... 🤔".to_owned()));
+    let progress_bar = BrailleProgress::new(1, 1, 3, Some("Thinking... 🤔".to_owned()));
     let mut send_progress_msg = bot.send_message(chat_id.clone(), progress_bar.current_string());
     send_progress_msg.reply_to_message_id = reply_to_msg.as_ref().map(|m| m.id);
     let sent_progress_msg = send_progress_msg.await?;
@@ -154,38 +162,26 @@ async fn actually_handle_chat_message(
         .unwrap();
     msgs.push(user_msg.clone());
 
-    // Send request to OpenAI while playing a progress animation.
-    let req_result = tokio::select! {
-        _ = async {
-            let mut progress_bar = progress_bar;
-            loop {
-                tokio::time::sleep(Duration::from_millis(200)).await;
-                progress_bar.advance_progress();
-                let _ = bot.edit_message_text(
-                    chat_id.clone(),
-                    sent_progress_msg.id,
-                    &progress_bar.current_string()
-                ).await;
-            }
-        } => { unreachable!() },
-        reply_result = openai_client::request_chat_model(&openai_client, msgs) => {
-            reply_result.map_err(|err| anyhow!("API error: {}", err))
-        },
-        _ = tokio::time::sleep(Duration::from_secs(config.openai_api_timeout)) => {
-            Err(anyhow!("API timeout"))
-        },
-    };
+    let result = stream_model_result(
+        &bot,
+        &chat_id,
+        &sent_progress_msg,
+        progress_bar,
+        msgs,
+        openai_client,
+        &config,
+    )
+    .await;
 
-    // Reply to the user and add to history.
-    let reply_result = match req_result {
+    // Record stats and add the reply to history.
+    let reply_result = match result {
         Ok(res) => {
-            let reply_text = res.message.content;
             session_mgr.add_message_to_session(chat_id.clone(), user_msg);
             session_mgr.add_message_to_session(
                 chat_id.clone(),
                 ChatCompletionRequestMessageArgs::default()
                     .role(Role::Assistant)
-                    .content(reply_text.clone())
+                    .content(res.content)
                     .build()
                     .unwrap(),
             );
@@ -202,9 +198,7 @@ async fn actually_handle_chat_message(
                     error!("Failed to update stats: {}", err);
                 }
             }
-            // TODO: add retry for edit failures.
-            bot.edit_message_text(chat_id, sent_progress_msg.id, reply_text)
-                .await
+            Ok(())
         }
         Err(err) => {
             error!("Failed to request the model: {}", err);
@@ -214,6 +208,7 @@ async fn actually_handle_chat_message(
             bot.edit_message_text(chat_id, sent_progress_msg.id, &config.i18n.api_error_prompt)
                 .reply_markup(reply_markup)
                 .await
+                .map(|_| ())
         }
     };
 
@@ -222,6 +217,72 @@ async fn actually_handle_chat_message(
     }
 
     Ok(())
+}
+
+async fn stream_model_result(
+    bot: &Bot,
+    chat_id: &String,
+    editing_msg: &Message,
+    mut progress_bar: BrailleProgress,
+    msgs: Vec<ChatCompletionRequestMessage>,
+    openai_client: OpenAIClient,
+    config: &SharedConfig,
+) -> Result<ChatModelResult, Error> {
+    let estimated_prompt_tokens = openai_client::estimate_prompt_tokens(&msgs);
+
+    let stream = openai_client::request_chat_model(&openai_client, msgs).await?;
+    let mut throttled_stream =
+        stream.throttle_buffer::<Vec<_>>(Duration::from_millis(config.stream_throttle_interval));
+
+    let mut timeout_times = 0;
+    let mut last_response = None;
+    loop {
+        tokio::select! {
+            res = throttled_stream.next() => {
+                if res.is_none() {
+                    break;
+                }
+
+                // Since the stream item is scanned (accumulated), we only
+                // need to get the last item in the buffer and use it as
+                // the latest message content.
+                last_response = res.as_ref().unwrap().last().cloned();
+
+                let content = &last_response
+                    .as_ref()
+                    .expect("The buffer should contain items")
+                    .content;
+                progress_bar.advance_progress();
+
+                let _ = bot.edit_message_text(
+                    chat_id.clone(),
+                    editing_msg.id,
+                    format!("{}\n{}", content, progress_bar.current_string())
+                ).await;
+
+                // Reset the timeout once the stream is resumed.
+                timeout_times = 0;
+            },
+            _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                timeout_times += 1;
+                if timeout_times >= config.openai_api_timeout {
+                    return Err(anyhow!("Stream is timeout"));
+                }
+            }
+        }
+    }
+
+    if let Some(mut last_response) = last_response {
+        // TODO: OpenAI currently doesn't support to give the token usage
+        // in stream mode. Therefore we need to estimate it locally.
+        last_response.token_usage =
+            openai_client::estimate_tokens(&last_response.content) + estimated_prompt_tokens;
+        bot.edit_message_text(chat_id.clone(), editing_msg.id, &last_response.content)
+            .await?;
+        return Ok(last_response);
+    }
+
+    Err(anyhow!("Server returned empty response"))
 }
 
 async fn reset_session(

@@ -1,5 +1,3 @@
-#![feature(fn_traits)]
-
 //! An out-of-box ChatGPT bot for Telegram.
 //!
 //! TeleGPT is a Telegram bot based on [`teloxide`](https://docs.rs/teloxide/latest/teloxide/)
