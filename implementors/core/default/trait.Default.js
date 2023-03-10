@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"telegpt_core":[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.68.0/core/default/trait.Default.html\" title=\"trait core::default::Default\">Default</a> for <a class=\"struct\" href=\"telegpt_core/config/struct.I18nStrings.html\" title=\"struct telegpt_core::config::I18nStrings\">I18nStrings</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Config","Top-level config type fot the bot."],["I18nStrings","Strings for I18N."],["SharedConfig","A thread-safe reference-counting object that represents a [`Config`] instance."]]};

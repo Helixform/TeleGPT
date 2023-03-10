@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"telegpt_core":[["impl Freeze for <a class=\"struct\" href=\"telegpt_core/config/struct.SharedConfig.html\" title=\"struct telegpt_core::config::SharedConfig\">SharedConfig</a>",1,["telegpt_core::config::SharedConfig"]],["impl Freeze for <a class=\"struct\" href=\"telegpt_core/config/struct.Config.html\" title=\"struct telegpt_core::config::Config\">Config</a>",1,["telegpt_core::config::Config"]],["impl Freeze for <a class=\"struct\" href=\"telegpt_core/config/struct.I18nStrings.html\" title=\"struct telegpt_core::config::I18nStrings\">I18nStrings</a>",1,["telegpt_core::config::I18nStrings"]]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["app","The entry of the bot application."],["config","Configuration-related types."]]};
