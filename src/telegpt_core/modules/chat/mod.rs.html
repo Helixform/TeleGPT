@@ -330,7 +330,25 @@
 <a href="#330" id="330">330</a>
 <a href="#331" id="331">331</a>
 <a href="#332" id="332">332</a>
-</pre><pre class="rust"><code><span class="kw">mod </span>braille;
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+</pre><pre class="rust"><code><span class="attr">#![allow(clippy::too_many_arguments)]
+
+</span><span class="kw">mod </span>braille;
 <span class="kw">mod </span>openai_client;
 <span class="kw">mod </span>session;
 <span class="kw">mod </span>session_mgr;
@@ -351,7 +369,7 @@
     config::SharedConfig,
     dispatcher::noop_handler,
     module_mgr::Module,
-    modules::stats::StatsManager,
+    modules::{admin::MemberManager, stats::StatsManager},
     types::HandlerResult,
     utils::{dptree_ext, StreamExt},
 };
@@ -367,33 +385,49 @@
     bot: Bot,
     me: Me,
     msg: Message,
-    text: MessageText,
     chat_id: ChatId,
     session_mgr: SessionManager,
     stats_mgr: StatsManager,
+    member_mgr: MemberManager,
     openai_client: OpenAIClient,
     config: SharedConfig,
 ) -&gt; bool {
-    <span class="kw">let </span><span class="kw-2">mut </span>text = text.<span class="number">0</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>text = msg.text().map_or(Default::default(), |t| t.to_owned());
     <span class="kw">let </span>chat_id = chat_id.to_string();
 
-    <span class="kw">if </span>text.starts_with(<span class="string">&quot;/&quot;</span>) {
+    <span class="kw">if </span>text.starts_with(<span class="string">&#39;/&#39;</span>) {
         <span class="comment">// Let other modules to process the command.
         </span><span class="kw">return </span><span class="bool-val">false</span>;
     }
 
+    <span class="kw">let </span>sender_username = msg
+        .from()
+        .and_then(|u| u.username.clone())
+        .unwrap_or_default();
+    <span class="kw">if </span>!member_mgr
+        .is_member_allowed(sender_username)
+        .<span class="kw">await
+        </span>.unwrap_or(<span class="bool-val">false</span>)
+    {
+        <span class="kw">let _ </span>= bot
+            .send_message(msg.chat.id, <span class="kw-2">&amp;</span>config.i18n.not_allowed_prompt)
+            .reply_to_message_id(msg.id)
+            .<span class="kw">await</span>;
+        <span class="kw">return </span><span class="bool-val">true</span>;
+    }
+
     <span class="kw">let </span>trimmed_text = text.trim_start();
-    <span class="kw">if </span>trimmed_text.starts_with(<span class="string">&quot;@&quot;</span>) {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(text_without_at) = trimmed_text.strip_prefix(<span class="string">&#39;@&#39;</span>) {
         <span class="comment">// Remove the leading mention to prevent the model from
         // being affected by it.
         </span><span class="kw">let </span>username = me.username();
-        <span class="kw">if </span>trimmed_text[<span class="number">1</span>..].starts_with(username) {
-            text = trimmed_text[(<span class="number">1 </span>+ username.len())..].to_owned();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(text_without_mention) = text_without_at.strip_prefix(username) {
+            text = text_without_mention.to_owned();
         }
     }
     text = text.trim().to_owned();
 
-    <span class="kw">match </span>actually_handle_chat_message(
+    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = actually_handle_chat_message(
         bot,
         <span class="prelude-val">Some</span>(msg),
         text,
@@ -405,10 +439,7 @@
     )
     .<span class="kw">await
     </span>{
-        <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">error!</span>(<span class="string">&quot;Failed to handle chat message: {}&quot;</span>, err);
-        }
-        <span class="kw">_ </span>=&gt; {}
+        <span class="macro">error!</span>(<span class="string">&quot;Failed to handle chat message: {}&quot;</span>, err);
     }
 
     <span class="bool-val">true
@@ -432,12 +463,9 @@
     }
     <span class="kw">let </span>message = message.unwrap();
 
-    <span class="kw">match </span>bot.delete_message(message.chat.id, message.id).<span class="kw">await </span>{
-        <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">error!</span>(<span class="string">&quot;Failed to revoke the retry message: {}&quot;</span>, err);
-            <span class="kw">return </span><span class="bool-val">false</span>;
-        }
-        <span class="kw">_ </span>=&gt; {}
+    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = bot.delete_message(message.chat.id, message.id).<span class="kw">await </span>{
+        <span class="macro">error!</span>(<span class="string">&quot;Failed to revoke the retry message: {}&quot;</span>, err);
+        <span class="kw">return </span><span class="bool-val">false</span>;
     }
 
     <span class="kw">let </span>chat_id = message.chat.id.to_string();
@@ -448,7 +476,7 @@
     }
     <span class="kw">let </span>last_message = last_message.unwrap();
 
-    <span class="kw">match </span>actually_handle_chat_message(
+    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = actually_handle_chat_message(
         bot,
         <span class="prelude-val">None</span>,
         last_message.content,
@@ -460,10 +488,7 @@
     )
     .<span class="kw">await
     </span>{
-        <span class="prelude-val">Err</span>(err) =&gt; {
-            <span class="macro">error!</span>(<span class="string">&quot;Failed to retry handling chat message: {}&quot;</span>, err);
-        }
-        <span class="kw">_ </span>=&gt; {}
+        <span class="macro">error!</span>(<span class="string">&quot;Failed to retry handling chat message: {}&quot;</span>, err);
     }
 
     <span class="bool-val">true
@@ -553,7 +578,7 @@
 
 <span class="kw">async fn </span>stream_model_result(
     bot: <span class="kw-2">&amp;</span>Bot,
-    chat_id: <span class="kw-2">&amp;</span>String,
+    chat_id: <span class="kw-2">&amp;</span>str,
     editing_msg: <span class="kw-2">&amp;</span>Message,
     <span class="kw-2">mut </span>progress_bar: BrailleProgress,
     msgs: Vec&lt;ChatCompletionRequestMessage&gt;,
@@ -580,18 +605,6 @@
                 // the latest message content.
                 </span>last_response = res.as_ref().unwrap().last().cloned();
 
-                <span class="kw">let </span>content = <span class="kw-2">&amp;</span>last_response
-                    .as_ref()
-                    .expect(<span class="string">&quot;The buffer should contain items&quot;</span>)
-                    .content;
-                progress_bar.advance_progress();
-
-                <span class="kw">let _ </span>= bot.edit_message_text(
-                    chat_id.clone(),
-                    editing_msg.id,
-                    <span class="macro">format!</span>(<span class="string">&quot;{}\n{}&quot;</span>, content, progress_bar.current_string())
-                ).<span class="kw">await</span>;
-
                 <span class="comment">// Reset the timeout once the stream is resumed.
                 </span>timeout_times = <span class="number">0</span>;
             },
@@ -602,6 +615,21 @@
                 }
             }
         }
+
+        progress_bar.advance_progress();
+        <span class="kw">let </span>updated_text = <span class="kw">if let </span><span class="prelude-val">Some</span>(last_response) = <span class="kw-2">&amp;</span>last_response {
+            <span class="macro">format!</span>(
+                <span class="string">&quot;{}\n{}&quot;</span>,
+                last_response.content,
+                progress_bar.current_string()
+            )
+        } <span class="kw">else </span>{
+            progress_bar.current_string()
+        };
+
+        <span class="kw">let _ </span>= bot
+            .edit_message_text(chat_id.to_owned(), editing_msg.id, updated_text)
+            .<span class="kw">await</span>;
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>last_response) = last_response {
@@ -609,7 +637,7 @@
         // in stream mode. Therefore we need to estimate it locally.
         </span>last_response.token_usage =
             openai_client::estimate_tokens(<span class="kw-2">&amp;</span>last_response.content) + estimated_prompt_tokens;
-        bot.edit_message_text(chat_id.clone(), editing_msg.id, <span class="kw-2">&amp;</span>last_response.content)
+        bot.edit_message_text(chat_id.to_owned(), editing_msg.id, <span class="kw-2">&amp;</span>last_response.content)
             .<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">return </span><span class="prelude-val">Ok</span>(last_response);
     }
@@ -630,12 +658,15 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Chat;
 
-<span class="kw">impl </span>Module <span class="kw">for </span>Chat {
-    <span class="kw">fn </span>register_dependency(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dep_map: <span class="kw-2">&amp;mut </span>DependencyMap) {
+<span class="attr">#[async_trait]
+</span><span class="kw">impl </span>Module <span class="kw">for </span>Chat {
+    <span class="kw">async fn </span>register_dependency(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dep_map: <span class="kw-2">&amp;mut </span>DependencyMap) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
         <span class="kw">let </span>config: Arc&lt;SharedConfig&gt; = dep_map.get();
 
         dep_map.insert(SessionManager::new(config.as_ref().clone()));
         dep_map.insert(openai_client::new_client(<span class="kw-2">&amp;</span>config.openai_api_key));
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>handler_chain(
@@ -647,7 +678,8 @@
                     .filter_map(|msg: Message| msg.text().map(|text| MessageText(text.to_owned())))
                     .map(|msg: Message| msg.chat.id)
                     .branch(
-                        dptree::filter(dptree_ext::command_filter(<span class="string">&quot;reset&quot;</span>)).endpoint(reset_session),
+                        dptree::filter_map(dptree_ext::command_filter(<span class="string">&quot;reset&quot;</span>))
+                            .endpoint(reset_session),
                     )
                     .branch(dptree::filter_async(handle_chat_message).endpoint(noop_handler)),
             )
@@ -659,7 +691,7 @@
     }
 
     <span class="kw">fn </span>commands(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;BotCommand&gt; {
-        <span class="kw">return </span><span class="macro">vec!</span>[BotCommand::new(<span class="string">&quot;reset&quot;</span>, <span class="string">&quot;Reset the current session&quot;</span>)];
+        <span class="macro">vec!</span>[BotCommand::new(<span class="string">&quot;reset&quot;</span>, <span class="string">&quot;Reset the current session&quot;</span>)]
     }
 }
 </code></pre></div>

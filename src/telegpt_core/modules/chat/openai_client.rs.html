@@ -55,16 +55,6 @@
 <a href="#55" id="55">55</a>
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
 </pre><pre class="rust"><code><span class="kw">use </span>std::pin::Pin;
 
 <span class="kw">use </span>anyhow::Error;
@@ -97,25 +87,15 @@
     <span class="kw">let </span>stream = client.chat().create_stream(req).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(stream
         .scan(ChatModelResult::default(), |acc, cur| {
-            <span class="kw">let </span>resp = cur
+            <span class="kw">let </span>content = cur
                 .as_ref()
                 .ok()
-                .and_then(|resp| <span class="kw">match </span>resp.choices.first() {
-                    <span class="prelude-val">Some</span>(choice) =&gt; <span class="prelude-val">Some</span>((
-                        resp.usage.as_ref().map(|u| u.total_tokens).unwrap_or(<span class="number">0</span>),
-                        choice,
-                    )),
-                    <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-                });
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(resp) = resp {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(content) = resp.<span class="number">1</span>.delta.content.as_ref() {
-                    acc.content.push_str(content);
-                }
-                acc.token_usage += resp.<span class="number">0</span>;
-                future::ready(<span class="prelude-val">Some</span>(acc.clone()))
-            } <span class="kw">else </span>{
-                future::ready(<span class="prelude-val">None</span>)
+                .and_then(|resp| resp.choices.first())
+                .and_then(|choice| choice.delta.content.as_ref());
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(content) = content {
+                acc.content.push_str(content);
             }
+            future::ready(<span class="prelude-val">Some</span>(acc.clone()))
         })
         .boxed())
 }

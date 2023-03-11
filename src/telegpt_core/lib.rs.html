@@ -42,6 +42,8 @@
 <a href="#42" id="42">42</a>
 <a href="#43" id="43">43</a>
 <a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
 </pre><pre class="rust"><code><span class="doccomment">//! An out-of-box ChatGPT bot for Telegram.
 //!
 //! TeleGPT is a Telegram bot based on [`teloxide`](https://docs.rs/teloxide/latest/teloxide/)
@@ -77,6 +79,8 @@
 </span><span class="kw">extern crate </span>log;
 <span class="attr">#[macro_use]
 </span><span class="kw">extern crate </span>anyhow;
+<span class="attr">#[macro_use]
+</span><span class="kw">extern crate </span>async_trait;
 
 <span class="kw">pub mod </span>app;
 <span class="kw">pub mod </span>config;

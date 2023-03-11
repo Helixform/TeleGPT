@@ -289,7 +289,7 @@
         <span class="kw">let </span>(work_tx, work_rx) = channel(<span class="number">10</span>);
         <span class="kw">let </span>shutdown_notify = Arc::new(Notify::new());
 
-        <span class="kw">let </span>rt_handle = Handle::current().clone();
+        <span class="kw">let </span>rt_handle = Handle::current();
 
         <span class="kw">let </span>db_thread = DatabaseThread::new(conn, rt_handle, work_rx, Arc::clone(<span class="kw-2">&amp;</span>shutdown_notify));
         <span class="kw">let </span>join_handle = ManuallyDrop::new(db_thread.start());

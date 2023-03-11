@@ -62,26 +62,31 @@
 <a href="#62" id="62">62</a>
 <a href="#63" id="63">63</a>
 <a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
 </pre><pre class="rust"><code><span class="kw">mod </span>stats_mgr;
 
 <span class="kw">use </span>std::fmt::Write;
 
+<span class="kw">use </span>anyhow::Error;
 <span class="kw">use </span>teloxide::dispatching::DpHandlerDescription;
 <span class="kw">use </span>teloxide::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>teloxide::types::BotCommand;
 
-<span class="kw">use crate</span>::{module_mgr::Module, types::HandlerResult, utils::dptree_ext};
+<span class="kw">use crate</span>::{
+    database::DatabaseManager, module_mgr::Module, types::HandlerResult, utils::dptree_ext,
+};
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span>stats_mgr::StatsManager;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>Stats {
-    stats_mgr: <span class="prelude-ty">Option</span>&lt;StatsManager&gt;,
+    db_mgr: DatabaseManager,
 }
 
 <span class="kw">impl </span>Stats {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(stats_mgr: StatsManager) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            stats_mgr: <span class="prelude-val">Some</span>(stats_mgr),
-        }
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(db_mgr: DatabaseManager) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ db_mgr }
     }
 }
 
@@ -91,7 +96,7 @@
         <span class="kw">let </span>user_usage = stats_mgr
             .query_usage(<span class="prelude-val">Some</span>(from_username.to_owned()))
             .<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="macro">write!</span>(<span class="kw-2">&amp;mut </span>reply_text, <span class="string">&quot;Your token usage: {}\n&quot;</span>, user_usage)<span class="question-mark">?</span>;
+        <span class="macro">writeln!</span>(<span class="kw-2">&amp;mut </span>reply_text, <span class="string">&quot;Your token usage: {}&quot;</span>, user_usage)<span class="question-mark">?</span>;
     }
     <span class="kw">let </span>total_usage = stats_mgr.query_usage(<span class="prelude-val">None</span>).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="macro">write!</span>(<span class="kw-2">&amp;mut </span>reply_text, <span class="string">&quot;Total token usage: {}&quot;</span>, total_usage)<span class="question-mark">?</span>;
@@ -104,9 +109,12 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">impl </span>Module <span class="kw">for </span>Stats {
-    <span class="kw">fn </span>register_dependency(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dep_map: <span class="kw-2">&amp;mut </span>DependencyMap) {
-        dep_map.insert(<span class="self">self</span>.stats_mgr.take().unwrap());
+<span class="attr">#[async_trait]
+</span><span class="kw">impl </span>Module <span class="kw">for </span>Stats {
+    <span class="kw">async fn </span>register_dependency(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dep_map: <span class="kw-2">&amp;mut </span>DependencyMap) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+        <span class="kw">let </span>stats_mgr = StatsManager::with_db_manager(<span class="self">self</span>.db_mgr.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
+        dep_map.insert(stats_mgr);
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>handler_chain(
@@ -114,16 +122,16 @@
     ) -&gt; Handler&lt;<span class="lifetime">&#39;static</span>, DependencyMap, HandlerResult, DpHandlerDescription&gt; {
         dptree::entry().branch(
             Update::filter_message()
-                .filter(dptree_ext::command_filter(<span class="string">&quot;stats&quot;</span>))
+                .filter_map(dptree_ext::command_filter(<span class="string">&quot;stats&quot;</span>))
                 .endpoint(handle_show_stats),
         )
     }
 
     <span class="kw">fn </span>commands(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;BotCommand&gt; {
-        <span class="kw">return </span><span class="macro">vec!</span>[BotCommand::new(
+        <span class="macro">vec!</span>[BotCommand::new(
             <span class="string">&quot;stats&quot;</span>,
             <span class="string">&quot;Show the token usage and other stats&quot;</span>,
-        )];
+        )]
     }
 }
 </code></pre></div>

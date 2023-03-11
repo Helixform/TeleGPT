@@ -104,10 +104,36 @@
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
 </pre><pre class="rust"><code><span class="attr">#![doc(hidden)]
 
-</span><span class="kw">use </span>teloxide::prelude::<span class="kw-2">*</span>;
+</span><span class="kw">use </span>std::sync::Arc;
+
+<span class="kw">use </span>anyhow::Error;
+<span class="kw">use </span>teloxide::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
+<span class="kw">use </span>tokio::sync::Mutex;
 
 <span class="kw">use crate</span>::{
     module_mgr::ModuleManager,
@@ -116,38 +142,36 @@
 };
 
 <span class="kw">fn </span>can_respond_group_message(me: <span class="kw-2">&amp;</span>User, msg: <span class="kw-2">&amp;</span>Message) -&gt; bool {
-    <span class="kw">match </span>msg.kind {
-        MessageKind::Common(MessageCommon {
-            media_kind: MediaKind::Text(<span class="kw-2">ref </span>media_text),
-            ..
-        }) =&gt; {
-            <span class="kw">let </span>text = media_text.text.as_str();
-            <span class="comment">// Command message:
-            </span><span class="kw">if </span>text.starts_with(<span class="string">&quot;/&quot;</span>) {
-                <span class="kw">return </span><span class="bool-val">true</span>;
-            }
-            <span class="comment">// Mention message:
-            </span><span class="kw">if </span>media_text.entities.iter().any(|ent| <span class="kw">match </span><span class="kw-2">&amp;</span>ent.kind {
-                MessageEntityKind::Mention =&gt; {
-                    <span class="kw">let </span>mention_username = <span class="kw-2">&amp;</span>text[ent.offset..(ent.offset + ent.length)];
-                    <span class="kw">if </span>mention_username.len() &lt; <span class="number">1 </span>{
-                        <span class="kw">return </span><span class="bool-val">false</span>; <span class="comment">// Just in case.
-                    </span>}
-                    me.username
-                        .as_ref()
-                        .map(|n| n == <span class="kw-2">&amp;</span>mention_username[<span class="number">1</span>..])
-                        .unwrap_or(<span class="bool-val">false</span>)
-                }
-                <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
-            }) {
-                <span class="kw">return </span><span class="bool-val">true</span>;
-            }
+    <span class="kw">if let </span>MessageKind::Common(MessageCommon {
+        media_kind: MediaKind::Text(<span class="kw-2">ref </span>media_text),
+        ..
+    }) = msg.kind
+    {
+        <span class="kw">let </span>text = media_text.text.as_str();
+        <span class="comment">// Command message:
+        </span><span class="kw">if </span>text.starts_with(<span class="string">&#39;/&#39;</span>) {
+            <span class="kw">return </span><span class="bool-val">true</span>;
         }
-        <span class="kw">_ </span>=&gt; {}
-    };
+        <span class="comment">// Mention message:
+        </span><span class="kw">if </span>media_text.entities.iter().any(|ent| <span class="kw">match </span><span class="kw-2">&amp;</span>ent.kind {
+            MessageEntityKind::Mention =&gt; {
+                <span class="kw">let </span>mention_username = <span class="kw-2">&amp;</span>text[ent.offset..(ent.offset + ent.length)];
+                <span class="kw">if </span>mention_username.is_empty() {
+                    <span class="kw">return </span><span class="bool-val">false</span>; <span class="comment">// Just in case.
+                </span>}
+                me.username
+                    .as_ref()
+                    .map(|n| n == <span class="kw-2">&amp;</span>mention_username[<span class="number">1</span>..])
+                    .unwrap_or(<span class="bool-val">false</span>)
+            }
+            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
+        }) {
+            <span class="kw">return </span><span class="bool-val">true</span>;
+        }
+    }
 
-    <span class="kw">return </span><span class="bool-val">false</span>;
-}
+    <span class="bool-val">false
+</span>}
 
 <span class="kw">async fn </span>message_filter(me: Me, msg: Message) -&gt; bool {
     <span class="kw">let </span>from = msg
@@ -184,10 +208,29 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>build_dispatcher(bot: Bot, <span class="kw-2">mut </span>module_mgr: ModuleManager) -&gt; TeloxideDispatcher {
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">async fn </span>build_dispatcher(
+    bot: Bot,
+    <span class="kw-2">mut </span>module_mgr: ModuleManager,
+) -&gt; <span class="prelude-ty">Result</span>&lt;TeloxideDispatcher, Error&gt; {
     <span class="comment">// Load dependencies.
-    </span><span class="kw">let </span><span class="kw-2">mut </span>dep_map = DependencyMap::new();
-    module_mgr.with_all_modules(|m| m.register_dependency(<span class="kw-2">&amp;mut </span>dep_map));
+    </span><span class="kw">struct </span>DependencyMapHolder {
+        dep_map: <span class="prelude-ty">Option</span>&lt;DependencyMap&gt;,
+    }
+    <span class="kw">let </span>dep_map_holder = Arc::new(Mutex::new(DependencyMapHolder {
+        dep_map: <span class="prelude-val">Some</span>(DependencyMap::new()),
+    }));
+    module_mgr
+        .with_all_modules_async(|m| {
+            <span class="kw">let </span>dep_map_holder = Arc::clone(<span class="kw-2">&amp;</span>dep_map_holder);
+            <span class="kw">async move </span>{
+                <span class="kw">let </span><span class="kw-2">mut </span>locked_dep_map_holder = dep_map_holder.lock().<span class="kw">await</span>;
+                <span class="kw">let </span>dep_map = locked_dep_map_holder.dep_map.as_mut().unwrap();
+                m.register_dependency(dep_map).<span class="kw">await</span><span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(())
+            }
+        })
+        .<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>dep_map = dep_map_holder.lock().<span class="kw">await</span>.dep_map.take().unwrap();
 
     <span class="comment">// Build handler chain.
     </span><span class="kw">let </span><span class="kw-2">mut </span>biz_handler = <span class="prelude-val">Some</span>(dptree::entry());
@@ -205,10 +248,11 @@
         </span>.branch(dptree::endpoint(default_handler)) <span class="comment">// Fallback handler.
         </span>.post_chain(dptree::endpoint(noop_handler)); <span class="comment">// For future extensions.
 
-    </span>Dispatcher::builder(bot, handler)
+    </span><span class="kw">let </span>dispatcher = Dispatcher::builder(bot, handler)
         .dependencies(dep_map)
         .enable_ctrlc_handler()
-        .build()
+        .build();
+    <span class="prelude-val">Ok</span>(dispatcher)
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="telegpt_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0 (2c8cc3432 2023-03-06)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

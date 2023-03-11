@@ -135,6 +135,20 @@
 <a href="#135" id="135">135</a>
 <a href="#136" id="136">136</a>
 <a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Configuration-related types.
 //!
 //! The configuration can be represented in and deserialized from JSON,
@@ -144,8 +158,9 @@
 //! {
 //!   &quot;openaiAPIKey&quot;: &quot;sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx&quot;,
 //!   &quot;botToken&quot;: &quot;8888888888:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX&quot;,
+//!   &quot;adminUsernames&quot;: [&quot;cyandev&quot;],
 //!   &quot;conversationLimit&quot;: 30,
-//!   &quot;databasePath&quot;: &quot;telegpt.sqlite&quot;,
+//!   &quot;databasePath&quot;: &quot;./path/to/telegpt.sqlite&quot;,
 //!   &quot;i18n&quot;: {
 //!     &quot;resetPrompt&quot;: &quot;I’m ready for a new challenge. What can I do for you now?&quot;
 //!   }
@@ -154,7 +169,9 @@
 //!
 //! See [`Config`] for more detailed descriptions.
 
-</span><span class="kw">use </span>std::{ops::Deref, sync::Arc};
+</span><span class="kw">use </span>std::collections::HashSet;
+<span class="kw">use </span>std::ops::Deref;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>paste::paste;
 <span class="kw">use </span>serde::Deserialize;
@@ -200,6 +217,12 @@
     </span><span class="attr">#[serde(default = <span class="string">&quot;default_openai_api_timeout&quot;</span>, rename = <span class="string">&quot;openaiAPITimeout&quot;</span>)]
     </span><span class="kw">pub </span>openai_api_timeout: u64,
 
+    <span class="doccomment">/// A set of usernames that represents the admin users, who can use
+    /// admin commands. You must specify this field to use admin features.
+    /// JSON key: `adminUsernames`
+    </span><span class="attr">#[serde(default, rename = <span class="string">&quot;adminUsernames&quot;</span>)]
+    </span><span class="kw">pub </span>admin_usernames: HashSet&lt;String&gt;,
+
     <span class="doccomment">/// The throttle interval (in milliseconds) for sending streamed
     /// chunks back to Telegram.
     /// JSON key: `streamThrottleInterval`
@@ -236,6 +259,10 @@
     /// JSON key: `resetPrompt`
     </span><span class="attr">#[serde(default = <span class="string">&quot;default_reset_prompt&quot;</span>, rename = <span class="string">&quot;resetPrompt&quot;</span>)]
     </span><span class="kw">pub </span>reset_prompt: String,
+    <span class="doccomment">/// A text to display when the current user is not allowed to use the bot.
+    /// JSON key: `notAllowedPrompt`
+    </span><span class="attr">#[serde(default = <span class="string">&quot;default_not_allowed_prompt&quot;</span>, rename = <span class="string">&quot;notAllowedPrompt&quot;</span>)]
+    </span><span class="kw">pub </span>not_allowed_prompt: String,
 }
 
 <span class="macro">macro_rules! </span>define_defaults {
@@ -271,6 +298,7 @@
 <span class="macro">define_defaults!</span>(I18nStrings {
     api_error_prompt: String = <span class="string">&quot;Hmm, something went wrong...&quot;</span>.to_owned(),
     reset_prompt: String = <span class="string">&quot;\u{26A0} Session is reset!&quot;</span>.to_owned(),
+    not_allowed_prompt: String = <span class="string">&quot;Sadly, you are not allowed to use this bot currently.&quot;</span>.to_owned(),
 });
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="telegpt_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0 (2c8cc3432 2023-03-06)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>

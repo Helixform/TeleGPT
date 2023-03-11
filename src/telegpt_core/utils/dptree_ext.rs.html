@@ -56,6 +56,46 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
 </pre><pre class="rust"><code><span class="kw">use </span>teloxide::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>teloxide::types::Me;
 
@@ -87,32 +127,72 @@
     }
 }
 
-<span class="kw">pub fn </span>command_filter(cmd: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; <span class="kw">impl </span>Fn(Message, Me) -&gt; bool {
-    <span class="kw">move </span>|msg: Message, me: Me| {
-        <span class="kw">let </span>text = msg.text();
-        <span class="kw">if </span>text.is_none() {
-            <span class="kw">return </span><span class="bool-val">false</span>;
-        }
-        <span class="kw">let </span>text = text.unwrap();
-
-        <span class="kw">let </span>pat = <span class="macro">format!</span>(<span class="string">&quot;/{}&quot;</span>, cmd);
-        <span class="kw">if </span>!text.starts_with(<span class="kw-2">&amp;</span>pat) {
-            <span class="kw">return </span><span class="bool-val">false</span>;
+<span class="kw">fn </span>extract_command_args&lt;<span class="lifetime">&#39;i</span>&gt;(input: <span class="kw-2">&amp;</span><span class="lifetime">&#39;i </span>str, cmd: <span class="kw-2">&amp;</span>str, username: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;i </span>str&gt; {
+    <span class="kw">let </span>pat = <span class="macro">format!</span>(<span class="string">&quot;/{}&quot;</span>, cmd);
+    input.strip_prefix(<span class="kw-2">&amp;</span>pat).and_then(|rest| {
+        <span class="kw">if </span>rest.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Some</span>(rest);
         }
 
         <span class="comment">// When sending commands in a group, a mention suffix may be attached to
         // the text. For example: &quot;/reset@xxxx_bot&quot;.
-        </span><span class="kw">let </span>rest = <span class="kw-2">&amp;</span>text[pat.len()..];
-        <span class="kw">if </span>rest.len() &gt; <span class="number">1 </span>{
-            <span class="kw">return </span>me
-                .username
-                .as_ref()
-                .map(|n| n == <span class="kw-2">&amp;</span>rest[<span class="number">1</span>..])
-                .unwrap_or(<span class="bool-val">false</span>);
+        </span><span class="kw">let </span>mention_part = <span class="macro">format!</span>(<span class="string">&quot;@{}&quot;</span>, username);
+        <span class="kw">let </span>args = rest.strip_prefix(<span class="kw-2">&amp;</span>mention_part).unwrap_or(rest);
+
+        <span class="kw">if </span>args.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Some</span>(args);
         }
 
-        <span class="bool-val">true
-    </span>}
+        <span class="kw">return </span>args.strip_prefix(<span class="string">&#39; &#39;</span>);
+    })
+}
+
+<span class="attr">#[derive(Clone, Debug, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>CommandArgs(<span class="kw">pub </span>String);
+
+<span class="kw">pub fn </span>command_filter(cmd: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str) -&gt; <span class="kw">impl </span>Fn(Message, Me) -&gt; <span class="prelude-ty">Option</span>&lt;CommandArgs&gt; {
+    <span class="kw">move </span>|msg: Message, me: Me| {
+        <span class="kw">let </span>text = msg.text()<span class="question-mark">?</span>;
+        extract_command_args(text, cmd, me.username()).map(|a| CommandArgs(a.to_owned()))
+    }
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">super</span>::extract_command_args;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_extract_command_args() {
+        <span class="kw">let </span>username = <span class="string">&quot;mybot&quot;</span>;
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>)
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test1&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">None
+        </span>));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test@otherbot&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">None
+        </span>));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test@mybot&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>)
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test@mybot arg1 arg2&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;arg1 arg2&quot;</span>)
+        ));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test@mybotarg&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">None
+        </span>));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+            extract_command_args(<span class="string">&quot;/test arg1 arg2&quot;</span>, <span class="string">&quot;test&quot;</span>, username),
+            <span class="prelude-val">Some</span>(<span class="string">&quot;arg1 arg2&quot;</span>)
+        ));
+    }
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="telegpt_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0 (2c8cc3432 2023-03-06)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
