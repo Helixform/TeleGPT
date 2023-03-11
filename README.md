@@ -10,12 +10,12 @@ TeleGPT is a Telegram bot based on [**teloxide**](https://github.com/teloxide/te
 
 ## Features
 
-🦀 Lightning fast with pure Rust codebase.<br>
-📢 Private chat and group chat supports.<br>
-🚀 Live streaming tokens to your message bubble.<br>
-💸 Token usage statistic recording and queryable via commands.<br>
-⚙️ File-based configuration and fully customizable.<br>
-✋ User access control supports.
+🦀 **Lightning fast** with pure Rust codebase.<br>
+📢 **All types of chat** (private and group) supports.<br>
+🚀 **Live streaming tokens** to your message bubble.<br>
+💸 **Token usage** statistic recording and queryable via commands.<br>
+⚙️ **Fully customizable** with file-based configuration.<br>
+✋ **Admin features** (Beta) and user access control supports.
 
 ## Getting TeleGPT
 
@@ -35,7 +35,20 @@ $ cargo build --release
 
 You need to create a configuration file before running the bot. The program reads `telegpt.config.json` from your current working directory by default, and you can also specify the config file path via `-c` option.
 
-The configuration is described in this [doc](https://icystudio.github.io/TeleGPT/telegpt_core/config/).
+The configuration is described in this [doc](https://icystudio.github.io/TeleGPT/telegpt_core/config/), and here is an example:
+
+```json
+{
+  "openaiAPIKey": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "botToken": "8888888888:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "adminUsernames": ["cyandev"],
+  "conversationLimit": 30,
+  "databasePath": "./path/to/telegpt.sqlite",
+  "i18n": {
+    "resetPrompt": "I’m ready for a new challenge. What can I do for you now?"
+  }
+}
+```
 
 To start the bot, simply run:
 
