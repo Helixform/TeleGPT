@@ -21,7 +21,7 @@ use crate::{
     config::SharedConfig,
     dispatcher::noop_handler,
     module_mgr::Module,
-    modules::stats::StatsManager,
+    modules::{admin::MemberManager, stats::StatsManager},
     types::HandlerResult,
     utils::{dptree_ext, StreamExt},
 };
@@ -37,19 +37,35 @@ async fn handle_chat_message(
     bot: Bot,
     me: Me,
     msg: Message,
-    text: MessageText,
     chat_id: ChatId,
     session_mgr: SessionManager,
     stats_mgr: StatsManager,
+    member_mgr: MemberManager,
     openai_client: OpenAIClient,
     config: SharedConfig,
 ) -> bool {
-    let mut text = text.0;
+    let mut text = msg.text().map_or(Default::default(), |t| t.to_owned());
     let chat_id = chat_id.to_string();
 
     if text.starts_with('/') {
         // Let other modules to process the command.
         return false;
+    }
+
+    let sender_username = msg
+        .from()
+        .and_then(|u| u.username.clone())
+        .unwrap_or_default();
+    if !member_mgr
+        .is_member_allowed(sender_username)
+        .await
+        .unwrap_or(false)
+    {
+        let _ = bot
+            .send_message(msg.chat.id, &config.i18n.not_allowed_prompt)
+            .reply_to_message_id(msg.id)
+            .await;
+        return true;
     }
 
     let trimmed_text = text.trim_start();
@@ -314,7 +330,8 @@ impl Module for Chat {
                     .filter_map(|msg: Message| msg.text().map(|text| MessageText(text.to_owned())))
                     .map(|msg: Message| msg.chat.id)
                     .branch(
-                        dptree::filter(dptree_ext::command_filter("reset")).endpoint(reset_session),
+                        dptree::filter_map(dptree_ext::command_filter("reset"))
+                            .endpoint(reset_session),
                     )
                     .branch(dptree::filter_async(handle_chat_message).endpoint(noop_handler)),
             )

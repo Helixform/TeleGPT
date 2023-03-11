@@ -17,7 +17,9 @@
 //!
 //! See [`Config`] for more detailed descriptions.
 
-use std::{ops::Deref, sync::Arc};
+use std::collections::HashSet;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use paste::paste;
 use serde::Deserialize;
@@ -63,6 +65,12 @@ pub struct Config {
     #[serde(default = "default_openai_api_timeout", rename = "openaiAPITimeout")]
     pub openai_api_timeout: u64,
 
+    /// A set of usernames that represents the admin users, who can use
+    /// admin commands.
+    /// JSON key: `adminUsernames`
+    #[serde(default, rename = "adminUsernames")]
+    pub admin_usernames: HashSet<String>,
+
     /// The throttle interval (in milliseconds) for sending streamed
     /// chunks back to Telegram.
     /// JSON key: `streamThrottleInterval`
@@ -99,6 +107,10 @@ pub struct I18nStrings {
     /// JSON key: `resetPrompt`
     #[serde(default = "default_reset_prompt", rename = "resetPrompt")]
     pub reset_prompt: String,
+    /// A text to display when the current user is not allowed to use the bot.
+    /// JSON key: `notAllowedPrompt`
+    #[serde(default = "default_not_allowed_prompt", rename = "notAllowedPrompt")]
+    pub not_allowed_prompt: String,
 }
 
 macro_rules! define_defaults {
@@ -134,4 +146,5 @@ define_defaults! {
 define_defaults!(I18nStrings {
     api_error_prompt: String = "Hmm, something went wrong...".to_owned(),
     reset_prompt: String = "\u{26A0} Session is reset!".to_owned(),
+    not_allowed_prompt: String = "Sadly, you are not allowed to use this bot currently.".to_owned(),
 });
