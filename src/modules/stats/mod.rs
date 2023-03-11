@@ -54,7 +54,7 @@ impl Module for Stats {
     ) -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription> {
         dptree::entry().branch(
             Update::filter_message()
-                .filter(dptree_ext::command_filter("stats"))
+                .filter_map(dptree_ext::command_filter("stats"))
                 .endpoint(handle_show_stats),
         )
     }

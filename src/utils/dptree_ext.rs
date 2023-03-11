@@ -29,30 +29,70 @@ where
     }
 }
 
-pub fn command_filter(cmd: &'static str) -> impl Fn(Message, Me) -> bool {
-    move |msg: Message, me: Me| {
-        let text = msg.text();
-        if text.is_none() {
-            return false;
-        }
-        let text = text.unwrap();
-
-        let pat = format!("/{}", cmd);
-        if !text.starts_with(&pat) {
-            return false;
+fn extract_command_args<'i>(input: &'i str, cmd: &str, username: &str) -> Option<&'i str> {
+    let pat = format!("/{}", cmd);
+    input.strip_prefix(&pat).and_then(|rest| {
+        if rest.is_empty() {
+            return Some(rest);
         }
 
         // When sending commands in a group, a mention suffix may be attached to
         // the text. For example: "/reset@xxxx_bot".
-        let rest = &text[pat.len()..];
-        if rest.len() > 1 {
-            return me
-                .username
-                .as_ref()
-                .map(|n| n == &rest[1..])
-                .unwrap_or(false);
+        let mention_part = format!("@{}", username);
+        let args = rest.strip_prefix(&mention_part).unwrap_or(rest);
+
+        if args.is_empty() {
+            return Some(args);
         }
 
-        true
+        return args.strip_prefix(' ');
+    })
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CommandArgs(pub String);
+
+pub fn command_filter(cmd: &'static str) -> impl Fn(Message, Me) -> Option<CommandArgs> {
+    move |msg: Message, me: Me| {
+        let text = msg.text()?;
+        extract_command_args(text, cmd, me.username()).map(|a| CommandArgs(a.to_owned()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_command_args;
+
+    #[test]
+    fn test_extract_command_args() {
+        let username = "mybot";
+        assert!(matches!(
+            extract_command_args("/test", "test", username),
+            Some("")
+        ));
+        assert!(matches!(
+            extract_command_args("/test1", "test", username),
+            None
+        ));
+        assert!(matches!(
+            extract_command_args("/test@otherbot", "test", username),
+            None
+        ));
+        assert!(matches!(
+            extract_command_args("/test@mybot", "test", username),
+            Some("")
+        ));
+        assert!(matches!(
+            extract_command_args("/test@mybot arg1 arg2", "test", username),
+            Some("arg1 arg2")
+        ));
+        assert!(matches!(
+            extract_command_args("/test@mybotarg", "test", username),
+            None
+        ));
+        assert!(matches!(
+            extract_command_args("/test arg1 arg2", "test", username),
+            Some("arg1 arg2")
+        ));
     }
 }
