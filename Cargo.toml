@@ -12,6 +12,13 @@ name = "telegpt"
 path = "src/main.rs"
 doc = false
 
+[profile.release]
+opt-level = "s"
+panic = "abort"
+lto = true
+codegen-units = 1
+strip = true
+
 [dependencies]
 teloxide = { version = "0.12", features = ["macros"] }
 async-openai = "0.8"
