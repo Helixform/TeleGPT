@@ -1,12 +1,16 @@
 #![doc(hidden)]
 
+use std::future::Future;
+
+use anyhow::Error;
 use teloxide::prelude::*;
 use teloxide::types::BotCommand;
 
 use crate::types::TeloxideHandler;
 
+#[async_trait]
 pub trait Module {
-    fn register_dependency(&mut self, dep_map: &mut DependencyMap);
+    async fn register_dependency(&mut self, dep_map: &mut DependencyMap) -> Result<(), Error>;
 
     fn handler_chain(&self) -> TeloxideHandler;
 
@@ -38,5 +42,16 @@ impl ModuleManager {
         for module in self.modules.iter_mut() {
             f(module.as_mut());
         }
+    }
+
+    pub async fn with_all_modules_async<'a, F, Fut>(&'a mut self, mut f: F) -> Result<(), Error>
+    where
+        F: FnMut(&'a mut dyn Module) -> Fut,
+        Fut: Future<Output = Result<(), Error>> + 'a,
+    {
+        for module in self.modules.iter_mut() {
+            f(module.as_mut()).await?;
+        }
+        Ok(())
     }
 }

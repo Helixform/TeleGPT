@@ -1,7 +1,11 @@
 #![doc(hidden)]
 
+use std::sync::Arc;
+
+use anyhow::Error;
 use teloxide::prelude::*;
 use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKind, User};
+use tokio::sync::Mutex;
 
 use crate::{
     module_mgr::ModuleManager,
@@ -76,10 +80,29 @@ pub(crate) async fn noop_handler() -> HandlerResult {
     Ok(())
 }
 
-pub(crate) fn build_dispatcher(bot: Bot, mut module_mgr: ModuleManager) -> TeloxideDispatcher {
+pub(crate) async fn build_dispatcher(
+    bot: Bot,
+    mut module_mgr: ModuleManager,
+) -> Result<TeloxideDispatcher, Error> {
     // Load dependencies.
-    let mut dep_map = DependencyMap::new();
-    module_mgr.with_all_modules(|m| m.register_dependency(&mut dep_map));
+    struct DependencyMapHolder {
+        dep_map: Option<DependencyMap>,
+    }
+    let dep_map_holder = Arc::new(Mutex::new(DependencyMapHolder {
+        dep_map: Some(DependencyMap::new()),
+    }));
+    module_mgr
+        .with_all_modules_async(|m| {
+            let dep_map_holder = Arc::clone(&dep_map_holder);
+            async move {
+                let mut locked_dep_map_holder = dep_map_holder.lock().await;
+                let dep_map = locked_dep_map_holder.dep_map.as_mut().unwrap();
+                m.register_dependency(dep_map).await?;
+                Ok(())
+            }
+        })
+        .await?;
+    let dep_map = dep_map_holder.lock().await.dep_map.take().unwrap();
 
     // Build handler chain.
     let mut biz_handler = Some(dptree::entry());
@@ -97,8 +120,9 @@ pub(crate) fn build_dispatcher(bot: Bot, mut module_mgr: ModuleManager) -> Telox
         .branch(dptree::endpoint(default_handler)) // Fallback handler.
         .post_chain(dptree::endpoint(noop_handler)); // For future extensions.
 
-    Dispatcher::builder(bot, handler)
+    let dispatcher = Dispatcher::builder(bot, handler)
         .dependencies(dep_map)
         .enable_ctrlc_handler()
-        .build()
+        .build();
+    Ok(dispatcher)
 }

@@ -33,6 +33,8 @@
 extern crate log;
 #[macro_use]
 extern crate anyhow;
+#[macro_use]
+extern crate async_trait;
 
 pub mod app;
 pub mod config;

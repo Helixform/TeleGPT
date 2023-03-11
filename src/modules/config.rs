@@ -1,3 +1,4 @@
+use anyhow::Error;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
 
@@ -15,9 +16,11 @@ impl Config {
     }
 }
 
+#[async_trait]
 impl Module for Config {
-    fn register_dependency(&mut self, dep_map: &mut DependencyMap) {
+    async fn register_dependency(&mut self, dep_map: &mut DependencyMap) -> Result<(), Error> {
         dep_map.insert(self.config.take().unwrap());
+        Ok(())
     }
 
     fn handler_chain(

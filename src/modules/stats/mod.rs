@@ -2,22 +2,23 @@ mod stats_mgr;
 
 use std::fmt::Write;
 
+use anyhow::Error;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
 use teloxide::types::BotCommand;
 
-use crate::{module_mgr::Module, types::HandlerResult, utils::dptree_ext};
+use crate::{
+    database::DatabaseManager, module_mgr::Module, types::HandlerResult, utils::dptree_ext,
+};
 pub(crate) use stats_mgr::StatsManager;
 
 pub(crate) struct Stats {
-    stats_mgr: Option<StatsManager>,
+    db_mgr: DatabaseManager,
 }
 
 impl Stats {
-    pub(crate) fn new(stats_mgr: StatsManager) -> Self {
-        Self {
-            stats_mgr: Some(stats_mgr),
-        }
+    pub(crate) fn new(db_mgr: DatabaseManager) -> Self {
+        Self { db_mgr }
     }
 }
 
@@ -40,9 +41,12 @@ async fn handle_show_stats(bot: Bot, msg: Message, stats_mgr: StatsManager) -> H
     Ok(())
 }
 
+#[async_trait]
 impl Module for Stats {
-    fn register_dependency(&mut self, dep_map: &mut DependencyMap) {
-        dep_map.insert(self.stats_mgr.take().unwrap());
+    async fn register_dependency(&mut self, dep_map: &mut DependencyMap) -> Result<(), Error> {
+        let stats_mgr = StatsManager::with_db_manager(self.db_mgr.clone()).await?;
+        dep_map.insert(stats_mgr);
+        Ok(())
     }
 
     fn handler_chain(

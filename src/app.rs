@@ -13,7 +13,7 @@ use crate::{
     dispatcher::build_dispatcher,
     module_mgr::ModuleManager,
     modules::chat::Chat,
-    modules::stats::{Stats, StatsManager},
+    modules::stats::Stats,
     types::HandlerResult,
 };
 
@@ -47,14 +47,7 @@ pub async fn run(config: SharedConfig) {
     let mut module_mgr = ModuleManager::new();
     module_mgr.register_module(crate::modules::config::Config::new(config.clone()));
     module_mgr.register_module(Chat);
-    let stats_mgr = match StatsManager::with_db_manager(db_mgr).await {
-        Ok(stats_mgr) => stats_mgr,
-        Err(err) => {
-            error!("Failed to init StatsManager: {}", err);
-            return;
-        }
-    };
-    module_mgr.register_module(Stats::new(stats_mgr));
+    module_mgr.register_module(Stats::new(db_mgr.clone()));
 
     info!("Initializing bot...");
     let bot = match init_bot(&config, &mut module_mgr).await {
@@ -65,7 +58,13 @@ pub async fn run(config: SharedConfig) {
         }
     };
 
-    let mut built_dispatcher = build_dispatcher(bot, module_mgr);
+    let mut built_dispatcher = match build_dispatcher(bot, module_mgr).await {
+        Ok(dispatcher) => dispatcher,
+        Err(err) => {
+            error!("Failed to init dispatcher: {}", err);
+            return;
+        }
+    };
     info!("Bot is started!");
     built_dispatcher.dispatch().await;
 }

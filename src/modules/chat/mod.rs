@@ -294,12 +294,15 @@ async fn reset_session(
 
 pub(crate) struct Chat;
 
+#[async_trait]
 impl Module for Chat {
-    fn register_dependency(&mut self, dep_map: &mut DependencyMap) {
+    async fn register_dependency(&mut self, dep_map: &mut DependencyMap) -> Result<(), Error> {
         let config: Arc<SharedConfig> = dep_map.get();
 
         dep_map.insert(SessionManager::new(config.as_ref().clone()));
         dep_map.insert(openai_client::new_client(&config.openai_api_key));
+
+        Ok(())
     }
 
     fn handler_chain(
