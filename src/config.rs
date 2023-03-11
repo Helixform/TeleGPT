@@ -7,8 +7,9 @@
 //! {
 //!   "openaiAPIKey": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 //!   "botToken": "8888888888:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+//!   "adminUsernames": ["cyandev"],
 //!   "conversationLimit": 30,
-//!   "databasePath": "telegpt.sqlite",
+//!   "databasePath": "./path/to/telegpt.sqlite",
 //!   "i18n": {
 //!     "resetPrompt": "I’m ready for a new challenge. What can I do for you now?"
 //!   }
@@ -66,7 +67,7 @@ pub struct Config {
     pub openai_api_timeout: u64,
 
     /// A set of usernames that represents the admin users, who can use
-    /// admin commands.
+    /// admin commands. You must specify this field to use admin features.
     /// JSON key: `adminUsernames`
     #[serde(default, rename = "adminUsernames")]
     pub admin_usernames: HashSet<String>,
