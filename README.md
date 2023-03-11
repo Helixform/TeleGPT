@@ -47,13 +47,29 @@ When you see the message `Bot is started`, you are ready to go!
 
 ### Enable the verbose logging
 
+> **Note:** Users' input will be logged in `DEBUG` level. To protect user privacy, please don't enable it in the production environment.
+
 For debugging purpose, you can enable the verbose logs by setting `RUST_LOG` environment variable. For example:
 
 ```shell
 $ RUST_LOG=TRACE /path/to/telegpt
 ```
 
-> **Note:** Users' input will be logged in `DEBUG` level. To protect user privacy, please don't enable it in the production environment.
+### Admin Features (Beta)
+
+> This feature depends on database to store the configurations. To ensure your data will not be lost after relaunching, you need to set a database path in the config file.
+
+The bot has some basic admin features built-in. You can control who are allowed to use the bot, and dynamically change the member list via a set of commands.
+
+By default, the bot is available for public use. It means everybody who adds it can chat with it, which may heavily cost your tokens. If you want to deploy and use the bot only within a small group of people, send `/set_public off` command to make the bot private. When you want to make it public again, send `/set_public on`.
+
+When the bot is in private mode, only admin users and invited members can chat with it. You can add or delete members via `/add_member` and `/del_member` command. The argument is **username**. For example: `/add_member cyandev`.
+
+Currently, only admin users can use admin commands, other member users are not allowed to use them.
+
+### Database
+
+The bot will use SQLite database to store some data produced during runtime. By default, if you don't provide a local file path, the data will be stored in memory database. When you restart the bot, all previous data (such as added members) will be lost. We recommend you to use the file-based database for usability.
 
 ## Roadmap
 
