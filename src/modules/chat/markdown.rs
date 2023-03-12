@@ -1,27 +1,14 @@
 use anyhow::Ok;
 use pulldown_cmark::{
-    CowStr, Event as CmarkEvent, Options as CmarkOptions, Parser as CmarkParser, Tag as CmarkTag,
+    CodeBlockKind, CowStr, Event as CmarkEvent, Options as CmarkOptions, Parser as CmarkParser,
+    Tag as CmarkTag,
 };
 use teloxide::types::{MessageEntity, MessageEntityKind};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ParsedString {
     pub content: String,
     pub entities: Vec<MessageEntity>,
-}
-
-impl ParsedString {
-    fn new() -> Self {
-        Self {
-            content: String::new(),
-            entities: Vec::new(),
-        }
-    }
-
-    fn trimmed(mut self) -> Self {
-        self.content.truncate(self.content.trim().len());
-        self
-    }
 }
 
 enum Event<'a> {
@@ -36,7 +23,7 @@ enum Event<'a> {
 enum Tag<'a> {
     Paragraph,
     Heading(u32),
-    CodeBlock,
+    CodeBlock(Option<CowStr<'a>>),
     List(Option<u64>),
     Item,
     Italic,
@@ -53,7 +40,10 @@ impl<'a> TryFrom<CmarkTag<'a>> for Tag<'a> {
         let mapped = match value {
             CmarkTag::Paragraph | CmarkTag::BlockQuote => Tag::Paragraph,
             CmarkTag::Heading(level, _, _) => Tag::Heading(level as _),
-            CmarkTag::CodeBlock(_) => Tag::CodeBlock,
+            CmarkTag::CodeBlock(code_block_kind) => match code_block_kind {
+                CodeBlockKind::Indented => Tag::CodeBlock(None),
+                CodeBlockKind::Fenced(lang) => Tag::CodeBlock(Some(lang)),
+            },
             CmarkTag::List(first) => Tag::List(first),
             CmarkTag::Item => Tag::Item,
             CmarkTag::Emphasis => Tag::Italic,
@@ -98,7 +88,9 @@ impl<'a> TryFrom<Tag<'a>> for EntityKind {
     fn try_from(value: Tag<'a>) -> Result<Self, Self::Error> {
         let mapped = match value {
             Tag::List(start) => EntityKind::List(start),
-            Tag::CodeBlock => EntityKind::TelegramEntityKind(MessageEntityKind::Code),
+            Tag::CodeBlock(lang) => EntityKind::TelegramEntityKind(MessageEntityKind::Pre {
+                language: lang.map(|lang| lang.to_string()),
+            }),
             Tag::Italic => EntityKind::TelegramEntityKind(MessageEntityKind::Italic),
             Tag::Bold => EntityKind::TelegramEntityKind(MessageEntityKind::Bold),
             Tag::Strikethrough => EntityKind::TelegramEntityKind(MessageEntityKind::Strikethrough),
@@ -136,10 +128,25 @@ impl ParseState {
     fn new() -> Self {
         Self {
             entity_stack: Vec::new(),
-            parsed_string: ParsedString::new(),
+            parsed_string: ParsedString::default(),
             utf16_offset: 0,
             prev_block_margin: 0,
         }
+    }
+
+    fn close(self) -> ParsedString {
+        let Self {
+            mut parsed_string,
+            prev_block_margin,
+            ..
+        } = self;
+
+        // Trim the redundant trailing margins.
+        parsed_string
+            .content
+            .truncate(parsed_string.content.len() - prev_block_margin);
+
+        parsed_string
     }
 
     fn next_state(mut self, event: Event) -> Self {
@@ -186,13 +193,22 @@ impl ParseState {
             Tag::Paragraph | Tag::Heading(_) => {
                 self.push_block(PARAGRAPH_MARGIN);
             }
-            Tag::CodeBlock => {
-                let entity = self.entity_stack.pop().expect("Unmatched end tag");
+            Tag::CodeBlock(_) => {
+                let Entity { kind, start } = self.entity_stack.pop().expect("Unmatched end tag");
                 self.parsed_string.entities.push(MessageEntity {
-                    kind: MessageEntityKind::Code,
-                    offset: entity.start,
-                    length: self.utf16_offset - entity.start,
+                    kind: if let EntityKind::TelegramEntityKind(kind) = kind {
+                        kind
+                    } else {
+                        panic!("Unexpected entity kind: {:?}", kind)
+                    },
+                    offset: start,
+                    length: self.utf16_offset - start,
                 });
+                if self.parsed_string.content.ends_with('\n') {
+                    // Usually, there will be a newline in the end of the code block.
+                    // We want to take it into consideration when performing collapsing.
+                    self.prev_block_margin = 1;
+                }
                 self.push_block(PARAGRAPH_MARGIN);
             }
             Tag::List(_) => {
@@ -297,8 +313,7 @@ pub fn parse(content: &str) -> ParsedString {
             }
         })
         .fold(ParseState::new(), |acc, event| acc.next_state(event))
-        .parsed_string
-        .trimmed()
+        .close()
 }
 
 #[cfg(test)]
@@ -309,13 +324,7 @@ mod tests {
 
     #[test]
     fn my_test() {
-        let content = r#"
-# Heading
-- list item 1
-- list item 2
-
-Next Paragraph
-        "#;
+        let content = "\n\n```rust\nfn is_prime(num: u64) -> bool {\n    if num <= 1 {\n        return false;\n    }\n    for i in 2..=((num as f64).sqrt() as u64) {\n        if num % i == 0 {\n            return false;\n        }\n    }\n    return true;\n}\n\nfn main() {\n    let num = 17;\n    if is_prime(num) {\n        println!(\"{} is a prime number\", num);\n    } else {\n        println!(\"{} is not a prime number\", num);\n    }\n}\n```\n\n输出：\n\n```\n17 is a prime number\n```";
         let events: Vec<_> = pulldown_cmark::Parser::new(content).collect();
         println!("{:#?}", events);
     }
@@ -353,6 +362,34 @@ Next Paragraph"#;
         let parsed = parse(raw);
 
         assert_eq!(parsed.content, expected_content);
+    }
+
+    #[test]
+    fn test_code() {
+        let raw = r#"This is a code snippet:
+```c
+printf("hello\n");
+```
+
+End"#;
+        let expected_content = r#"This is a code snippet:
+
+printf("hello\n");
+
+End"#;
+        let parsed = parse(raw);
+
+        assert_eq!(parsed.content, expected_content);
+        assert!(matches!(
+            parsed.entities[0],
+            MessageEntity {
+                kind: MessageEntityKind::Pre {
+                    language: Some(ref lang)
+                },
+                offset: 25,
+                length: 19
+            } if lang == "c"
+        ));
     }
 
     #[test]
