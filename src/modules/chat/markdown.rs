@@ -121,11 +121,15 @@ struct Entity {
     start: usize,
 }
 
+const PARAGRAPH_MARGIN: usize = 2;
+const LIST_ITEM_MARGIN: usize = 1;
+
 #[derive(Debug)]
 struct ParseState {
     entity_stack: Vec<Entity>,
     parsed_string: ParsedString,
     utf16_offset: usize,
+    prev_block_margin: usize,
 }
 
 impl ParseState {
@@ -134,6 +138,7 @@ impl ParseState {
             entity_stack: Vec::new(),
             parsed_string: ParsedString::new(),
             utf16_offset: 0,
+            prev_block_margin: 0,
         }
     }
 
@@ -178,10 +183,9 @@ impl ParseState {
 
     fn end(&mut self, tag: Tag) {
         match tag {
-            Tag::Paragraph => {
-                self.push_str("\n");
+            Tag::Paragraph | Tag::Heading(_) => {
+                self.push_block(PARAGRAPH_MARGIN);
             }
-            Tag::Heading(_) => self.push_str("\n"),
             Tag::CodeBlock => {
                 let entity = self.entity_stack.pop().expect("Unmatched end tag");
                 self.parsed_string.entities.push(MessageEntity {
@@ -189,14 +193,13 @@ impl ParseState {
                     offset: entity.start,
                     length: self.utf16_offset - entity.start,
                 });
-                self.push_str("\n");
+                self.push_block(PARAGRAPH_MARGIN);
             }
             Tag::List(_) => {
                 self.entity_stack.pop().expect("Unmatched end tag");
-                self.push_str("\n");
+                self.push_block(PARAGRAPH_MARGIN);
             }
             Tag::Item => {
-                self.push_str("\n");
                 if let Some(Entity {
                     kind: EntityKind::List(maybe_start_number),
                     ..
@@ -208,6 +211,7 @@ impl ParseState {
                 } else {
                     panic!("Unmatched end tag");
                 }
+                self.push_block(LIST_ITEM_MARGIN)
             }
             Tag::Italic | Tag::Bold | Tag::Strikethrough => {
                 let Entity { kind, start } = self.entity_stack.pop().expect("Unmatched end tag");
@@ -261,6 +265,17 @@ impl ParseState {
         let utf16_len_inc = string.encode_utf16().count();
         self.parsed_string.content.push_str(string);
         self.utf16_offset += utf16_len_inc;
+        self.prev_block_margin = 0;
+    }
+
+    fn push_block(&mut self, margin: usize) {
+        if self.prev_block_margin >= margin {
+            return;
+        }
+
+        let this_margin = margin - self.prev_block_margin;
+        self.push_str(&"\n".repeat(this_margin));
+        self.prev_block_margin = margin;
     }
 }
 
@@ -288,28 +303,81 @@ pub fn parse(content: &str) -> ParsedString {
 
 #[cfg(test)]
 mod tests {
+    use teloxide::types::{MessageEntity, MessageEntityKind};
+
     use super::*;
 
     #[test]
-    fn test_parse() {
+    fn my_test() {
         let content = r#"
-很抱歉，我理解有误。以下是将 `title` 属性添加到 Markdown 格式的图片标题中的无序列表：
+# Heading
+- list item 1
+- list item 2
 
-- 苹果 ![苹果](https://img.icons8.com/color/48/000000/apple.png)
-- 香蕉 ![香蕉](https://img.icons8.com/color/48/000000/banana.png)
-- 草莓 ![草莓](https://img.icons8.com/color/48/000000/strawberry.png)
-- 橙子 ![橙子](https://img.icons8.com/color/48/000000/orange.png)
-- 葡萄 ![葡萄](https://img.icons8.com/color/48/000000/grapes.png)
+Next Paragraph
+        "#;
+        let events: Vec<_> = pulldown_cmark::Parser::new(content).collect();
+        println!("{:#?}", events);
+    }
 
-```rust
-fn main() {
+    #[test]
+    fn test_parse_simple() {
+        let raw = r#"# Heading
+- list item 1
+- list item 2
 
-}
-```
+Next Paragraph"#;
+        let expected_content = r#"# Heading
 
-这是一个**加粗**文本
-"#;
-        let parsed = parse(content);
+• list item 1
+• list item 2
+
+Next Paragraph"#;
+        let parsed = parse(raw);
+
+        assert_eq!(parsed.content, expected_content);
+    }
+
+    #[test]
+    fn test_parse_paragraph_list() {
+        let raw = r#"- list item 1
+
+- list item 2
+
+- list item 3"#;
+        let expected_content = r#"• list item 1
+
+• list item 2
+
+• list item 3"#;
+        let parsed = parse(raw);
+
+        assert_eq!(parsed.content, expected_content);
+    }
+
+    #[test]
+    fn test_inline_formats() {
+        let raw = r#"this is **bold *bold italic* text**"#;
+        let expected_content = r#"this is bold bold italic text"#;
+        let parsed = parse(raw);
+
         println!("{:#?}", parsed);
+        assert_eq!(parsed.content, expected_content);
+        assert!(matches!(
+            parsed.entities[0],
+            MessageEntity {
+                kind: MessageEntityKind::Italic,
+                offset: 13,
+                length: 11
+            }
+        ));
+        assert!(matches!(
+            parsed.entities[1],
+            MessageEntity {
+                kind: MessageEntityKind::Bold,
+                offset: 8,
+                length: 21
+            }
+        ));
     }
 }
