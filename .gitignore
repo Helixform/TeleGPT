@@ -12,7 +12,25 @@ target/
 .DS_Store
 ._.DS_Store
 
-config.json
+# Docker Files
 mnt
 data
 docker-compose.dev.yml
+
+# TeleGPT Default Config Files
+*.config.json
+config.json
+
+# Visual Studio Code Configurations
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
