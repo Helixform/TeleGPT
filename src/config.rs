@@ -86,6 +86,13 @@ pub struct Config {
     #[serde(default = "default_conversation_limit", rename = "conversationLimit")]
     pub conversation_limit: u64,
 
+    /// A boolean value that indicates whether to parse and render the
+    /// markdown contents. When set to `false`, the raw contents returned
+    /// from OpenAI will be displayed. This is default to `false`.
+    /// JSON key: `rendersMarkdown`
+    #[serde(default = "default_renders_markdown", rename = "rendersMarkdown")]
+    pub renders_markdown: bool,
+
     /// A path for storing the database, [`None`] for in-memory database.
     /// JSON key: `databasePath`
     #[serde(rename = "databasePath")]
@@ -142,6 +149,7 @@ define_defaults! {
     openai_api_timeout: u64 = 10,
     stream_throttle_interval: u64 = 500,
     conversation_limit: u64 = 20,
+    renders_markdown: bool = false,
 }
 
 define_defaults!(I18nStrings {
