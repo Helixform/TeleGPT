@@ -290,11 +290,15 @@ async fn stream_model_result(
         // in stream mode. Therefore we need to estimate it locally.
         last_response.token_usage =
             openai_client::estimate_tokens(&last_response.content) + estimated_prompt_tokens;
-        let parsed_content = markdown::parse(&last_response.content);
-        println!("{:#?}", &parsed_content);
-        bot.edit_message_text(chat_id.to_owned(), editing_msg.id, parsed_content.content)
-            .entities(parsed_content.entities)
-            .await?;
+        if config.renders_markdown {
+            let parsed_content = markdown::parse(&last_response.content);
+            bot.edit_message_text(chat_id.to_owned(), editing_msg.id, parsed_content.content)
+                .entities(parsed_content.entities)
+                .await?;
+        } else {
+            bot.edit_message_text(chat_id.to_owned(), editing_msg.id, &last_response.content)
+                .await?;
+        }
         return Ok(last_response);
     }
 

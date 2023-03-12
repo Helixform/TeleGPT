@@ -323,13 +323,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn my_test() {
-        let content = "\n\n```rust\nfn is_prime(num: u64) -> bool {\n    if num <= 1 {\n        return false;\n    }\n    for i in 2..=((num as f64).sqrt() as u64) {\n        if num % i == 0 {\n            return false;\n        }\n    }\n    return true;\n}\n\nfn main() {\n    let num = 17;\n    if is_prime(num) {\n        println!(\"{} is a prime number\", num);\n    } else {\n        println!(\"{} is not a prime number\", num);\n    }\n}\n```\n\n输出：\n\n```\n17 is a prime number\n```";
-        let events: Vec<_> = pulldown_cmark::Parser::new(content).collect();
-        println!("{:#?}", events);
-    }
-
-    #[test]
     fn test_parse_simple() {
         let raw = r#"# Heading
 - list item 1
