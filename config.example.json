@@ -2,7 +2,7 @@
     "openaiAPIKey": "sk-************************************************",
     "botToken": "8888888888:***********************************",
     "conversationLimit": 16,
-    "databasePath": "/telegpt/telegpt.sqlite",
+    "databasePath": "/telegpt/data/telegpt.sqlite",
     "adminUsernames": [
         "cyandev",
         "withExtendedLifetime"

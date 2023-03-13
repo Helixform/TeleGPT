@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 
 cd "$(dirname "$0")" || exit 1
 
 PWD="$(pwd)"
 
-_BIN_PATH="$PWD/target/release/telegpt"
+_BIN_PATH="$PWD/telegpt"
 _CONFIG_PATH="$PWD/config.json"
 
 if [ -n "$TELEGPT_CONFIG" ]; then
