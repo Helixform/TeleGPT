@@ -1,4 +1,5 @@
-use anyhow::Ok;
+use std::marker::PhantomData;
+
 use pulldown_cmark::{
     CodeBlockKind, CowStr, Event as CmarkEvent, Options as CmarkOptions, Parser as CmarkParser,
     Tag as CmarkTag,
@@ -11,6 +12,15 @@ pub struct ParsedString {
     pub entities: Vec<MessageEntity>,
 }
 
+impl ParsedString {
+    fn with_str(string: &str) -> Self {
+        Self {
+            content: string.to_owned(),
+            entities: vec![],
+        }
+    }
+}
+
 enum Event<'a> {
     Start(Tag<'a>),
     End(Tag<'a>),
@@ -19,7 +29,7 @@ enum Event<'a> {
     Break,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Tag<'a> {
     Paragraph,
     Heading(u32),
@@ -34,7 +44,7 @@ enum Tag<'a> {
 }
 
 impl<'a> TryFrom<CmarkTag<'a>> for Tag<'a> {
-    type Error = anyhow::Error;
+    type Error = ParserError<'a>;
 
     fn try_from(value: CmarkTag<'a>) -> Result<Self, Self::Error> {
         let mapped = match value {
@@ -51,14 +61,14 @@ impl<'a> TryFrom<CmarkTag<'a>> for Tag<'a> {
             CmarkTag::Strikethrough => Tag::Strikethrough,
             CmarkTag::Link(_, url, _) => Tag::Link(url),
             CmarkTag::Image(_, url, _) => Tag::Image(url),
-            _ => return Err(anyhow!("Unexpected tag: {:?}", value)),
+            _ => return Err(ParserError::UnexpectedCmarkTag(value)),
         };
         Ok(mapped)
     }
 }
 
 impl<'a> TryFrom<CmarkEvent<'a>> for Event<'a> {
-    type Error = anyhow::Error;
+    type Error = ParserError<'a>;
 
     fn try_from(value: CmarkEvent<'a>) -> Result<Self, Self::Error> {
         let mapped = match value {
@@ -69,45 +79,47 @@ impl<'a> TryFrom<CmarkEvent<'a>> for Event<'a> {
             CmarkEvent::SoftBreak | CmarkEvent::HardBreak => Event::Break,
             CmarkEvent::Rule => Event::Text(CowStr::Borrowed("---")),
             _ => {
-                return Err(anyhow!("Unexpected event: {:?}", value));
+                return Err(ParserError::UnexpectedCmarkEvent(value));
             }
         };
         Ok(mapped)
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum EntityKind {
     TelegramEntityKind(MessageEntityKind),
     List(Option<u64>),
 }
 
-impl<'a> TryFrom<Tag<'a>> for EntityKind {
-    type Error = anyhow::Error;
+impl<'a> TryFrom<&Tag<'a>> for EntityKind {
+    type Error = ParserError<'a>;
 
-    fn try_from(value: Tag<'a>) -> Result<Self, Self::Error> {
+    fn try_from(value: &Tag<'a>) -> Result<Self, Self::Error> {
         let mapped = match value {
-            Tag::List(start) => EntityKind::List(start),
+            Tag::List(start) => EntityKind::List(*start),
             Tag::CodeBlock(lang) => EntityKind::TelegramEntityKind(MessageEntityKind::Pre {
-                language: lang.map(|lang| lang.to_string()),
+                language: lang.as_ref().map(|lang| lang.to_string()),
             }),
             Tag::Italic => EntityKind::TelegramEntityKind(MessageEntityKind::Italic),
             Tag::Bold => EntityKind::TelegramEntityKind(MessageEntityKind::Bold),
             Tag::Strikethrough => EntityKind::TelegramEntityKind(MessageEntityKind::Strikethrough),
             Tag::Link(url) | Tag::Image(url) => {
                 EntityKind::TelegramEntityKind(MessageEntityKind::TextLink {
-                    url: url.parse().unwrap(),
+                    url: url
+                        .parse()
+                        .map_err(|_| ParserError::InvalidURL(url.clone()))?,
                 })
             }
             _ => {
-                return Err(anyhow!("Unexpected tag: {:?}", value));
+                return Err(ParserError::UnexpectedTag(value.clone()));
             }
         };
         Ok(mapped)
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Entity {
     kind: EntityKind,
     start: usize,
@@ -117,20 +129,39 @@ const PARAGRAPH_MARGIN: usize = 2;
 const LIST_ITEM_MARGIN: usize = 1;
 
 #[derive(Debug)]
-struct ParseState {
+enum ParserError<'input> {
+    /// Cannot convert the Cmark tag to our tag.
+    UnexpectedCmarkTag(CmarkTag<'input>),
+    /// Cannot handle the Cmark event.
+    UnexpectedCmarkEvent(CmarkEvent<'input>),
+    /// Cannot parse the given URL string.
+    InvalidURL(CowStr<'input>),
+    /// Cannot handle the tag.
+    UnexpectedTag(Tag<'input>),
+    /// Meet unmatched entity. The first field is the current entity kind,
+    /// and the second field is string of the expected kind.
+    UnmatchedEntity(Option<EntityKind>, &'static str),
+}
+
+type ParserEventResult<'input> = Result<(), ParserError<'input>>;
+
+#[derive(Debug)]
+struct ParseState<'p> {
     entity_stack: Vec<Entity>,
     parsed_string: ParsedString,
     utf16_offset: usize,
     prev_block_margin: usize,
+    phantom: PhantomData<&'p str>,
 }
 
-impl ParseState {
+impl<'p> ParseState<'p> {
     fn new() -> Self {
         Self {
             entity_stack: Vec::new(),
             parsed_string: ParsedString::default(),
             utf16_offset: 0,
             prev_block_margin: 0,
+            phantom: PhantomData,
         }
     }
 
@@ -149,57 +180,68 @@ impl ParseState {
         parsed_string
     }
 
-    fn next_state(mut self, event: Event) -> Self {
+    #[allow(clippy::result_large_err)]
+    fn next_state<'input: 'p>(mut self, event: Event<'input>) -> Result<Self, ParserError<'input>> {
         match event {
-            Event::Start(tag) => self.start(tag),
-            Event::End(tag) => self.end(tag),
+            Event::Start(tag) => self.start(tag)?,
+            Event::End(tag) => self.end(tag)?,
             Event::Text(text) => self.text(text),
             Event::Code(text) => self.code(text),
             Event::Break => self.r#break(),
         };
-        self
+        Ok(self)
     }
 
-    fn start(&mut self, tag: Tag) {
+    #[allow(clippy::result_large_err)]
+    fn start<'input: 'p>(&mut self, tag: Tag<'input>) -> ParserEventResult<'input> {
         match tag {
             Tag::Paragraph => {}
             Tag::Heading(level) => {
                 self.push_str(&format!("{} ", "#".repeat(level as _)));
             }
             Tag::Item => {
-                let item_marker = self
-                    .entity_stack
-                    .last()
-                    .and_then(|entity| match entity.kind {
-                        EntityKind::List(Some(start)) => Some(format!("{}. ", start)),
-                        EntityKind::List(None) => Some("• ".to_owned()),
-                        _ => None,
-                    })
-                    .expect("Expected a list entity");
+                let top_entity_kind = self.entity_stack.last().map(|e| &e.kind);
+                let item_marker = top_entity_kind
+                    .ok_or_else(|| ParserError::UnmatchedEntity(top_entity_kind.cloned(), "List"))
+                    .and_then(|kind| match kind {
+                        EntityKind::List(Some(start)) => Ok(format!("{}. ", start)),
+                        EntityKind::List(None) => Ok("• ".to_owned()),
+                        _ => Err(ParserError::UnmatchedEntity(Some(kind.clone()), "List")),
+                    })?;
                 self.push_str(&item_marker);
             }
-            _ => {
-                let entity_kind = tag.try_into().expect("Unexpected tag");
+            ref tag_ref => {
+                let entity_kind = tag_ref
+                    .try_into()
+                    .map_err(|_| ParserError::UnexpectedTag(tag))?;
                 self.entity_stack.push(Entity {
                     kind: entity_kind,
                     start: self.utf16_offset,
                 });
             }
         }
+        Ok(())
     }
 
-    fn end(&mut self, tag: Tag) {
+    #[allow(clippy::result_large_err)]
+    fn end<'input: 'p>(&mut self, tag: Tag<'input>) -> ParserEventResult<'input> {
         match tag {
             Tag::Paragraph | Tag::Heading(_) => {
                 self.push_block(PARAGRAPH_MARGIN);
             }
             Tag::CodeBlock(_) => {
-                let Entity { kind, start } = self.entity_stack.pop().expect("Unmatched end tag");
+                let Entity { kind, start } = self
+                    .entity_stack
+                    .pop()
+                    .ok_or(ParserError::UnmatchedEntity(None, "Pre"))?;
                 self.parsed_string.entities.push(MessageEntity {
-                    kind: if let EntityKind::TelegramEntityKind(kind) = kind {
+                    kind: if let EntityKind::TelegramEntityKind(
+                        kind @ MessageEntityKind::Pre { .. },
+                    ) = kind
+                    {
                         kind
                     } else {
-                        panic!("Unexpected entity kind: {:?}", kind)
+                        return Err(ParserError::UnmatchedEntity(Some(kind), "Pre"));
                     },
                     offset: start,
                     length: self.utf16_offset - start,
@@ -212,8 +254,15 @@ impl ParseState {
                 self.push_block(PARAGRAPH_MARGIN);
             }
             Tag::List(_) => {
-                self.entity_stack.pop().expect("Unmatched end tag");
-                self.push_block(PARAGRAPH_MARGIN);
+                let Entity { kind, .. } = self
+                    .entity_stack
+                    .pop()
+                    .ok_or(ParserError::UnmatchedEntity(None, "List"))?;
+                if let EntityKind::List(_) = kind {
+                    self.push_block(PARAGRAPH_MARGIN);
+                } else {
+                    return Err(ParserError::UnmatchedEntity(Some(kind), "List"));
+                }
             }
             Tag::Item => {
                 if let Some(Entity {
@@ -225,38 +274,50 @@ impl ParseState {
                         *start_number += 1;
                     }
                 } else {
-                    panic!("Unmatched end tag");
+                    return Err(ParserError::UnmatchedEntity(
+                        self.entity_stack.last().map(|e| e.kind.clone()),
+                        "List",
+                    ));
                 }
                 self.push_block(LIST_ITEM_MARGIN)
             }
             Tag::Italic | Tag::Bold | Tag::Strikethrough => {
-                let Entity { kind, start } = self.entity_stack.pop().expect("Unmatched end tag");
+                let Entity { kind, start } = self
+                    .entity_stack
+                    .pop()
+                    .ok_or(ParserError::UnmatchedEntity(None, "InlineFormat"))?;
                 self.parsed_string.entities.push(MessageEntity {
                     kind: if let EntityKind::TelegramEntityKind(kind) = kind {
+                        // FIXME: continue to validate the `MessageEntityKind`.
                         kind
                     } else {
-                        panic!("Unexpected entity kind: {:?}", kind)
+                        return Err(ParserError::UnmatchedEntity(Some(kind), "InlineFormat"));
                     },
                     offset: start,
                     length: self.utf16_offset - start,
                 });
             }
             Tag::Link(_) | Tag::Image(_) => {
-                if let Some(Entity {
-                    kind: EntityKind::TelegramEntityKind(kind),
-                    start,
-                }) = self.entity_stack.pop()
-                {
-                    self.parsed_string.entities.push(MessageEntity {
-                        kind,
-                        offset: start,
-                        length: self.utf16_offset - start,
-                    });
-                } else {
-                    panic!("Unmatched end tag");
-                }
+                let Entity { kind, start } = self
+                    .entity_stack
+                    .pop()
+                    .ok_or(ParserError::UnmatchedEntity(None, "LinkOrImage"))?;
+
+                self.parsed_string.entities.push(MessageEntity {
+                    kind: if let EntityKind::TelegramEntityKind(
+                        kind @ MessageEntityKind::TextLink { .. },
+                    ) = kind
+                    {
+                        kind
+                    } else {
+                        return Err(ParserError::UnmatchedEntity(Some(kind), "LinkOrImage"));
+                    },
+                    offset: start,
+                    length: self.utf16_offset - start,
+                });
             }
         }
+        Ok(())
     }
 
     fn text(&mut self, text: CowStr) {
@@ -299,21 +360,20 @@ impl ParseState {
 pub fn parse(content: &str) -> ParsedString {
     let mut options = CmarkOptions::empty();
     options.insert(CmarkOptions::ENABLE_STRIKETHROUGH);
-    let parser = CmarkParser::new_ext(content, options);
+    let mut parser = CmarkParser::new_ext(content, options);
 
-    parser
-        .filter_map(|event| {
-            #[cfg(debug_assertions)]
-            {
-                Some(Event::try_from(event).expect("Unexpected event"))
-            }
-            #[cfg(not(debug_assertions))]
-            {
-                Event::try_from(event).ok()
-            }
-        })
-        .fold(ParseState::new(), |acc, event| acc.next_state(event))
-        .close()
+    let result = parser.try_fold(ParseState::new(), |acc, event| {
+        let mapped_event = Event::try_from(event)?;
+        acc.next_state(mapped_event)
+    });
+
+    match result {
+        Ok(state) => state.close(),
+        Err(err) => {
+            error!("Error while parsing Markdown: {:?}", err);
+            ParsedString::with_str(content)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -409,5 +469,12 @@ End"#;
                 length: 21
             }
         ));
+    }
+
+    #[test]
+    fn test_malformed_url() {
+        let raw = r#"This is a [link](invalid)"#;
+        let parsed = parse(raw);
+        assert_eq!(parsed.content, raw);
     }
 }
