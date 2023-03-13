@@ -234,6 +234,14 @@ impl<'p> ParseState<'p> {
                     .entity_stack
                     .pop()
                     .ok_or(ParserError::UnmatchedEntity(None, "Pre"))?;
+                let has_trailing_newline = if self.parsed_string.content.ends_with('\n') {
+                    // Usually, there will be a newline in the end of the code block.
+                    // We want to take it into consideration when performing collapsing.
+                    self.prev_block_margin = 1;
+                    true
+                } else {
+                    false
+                };
                 self.parsed_string.entities.push(MessageEntity {
                     kind: if let EntityKind::TelegramEntityKind(
                         kind @ MessageEntityKind::Pre { .. },
@@ -244,13 +252,9 @@ impl<'p> ParseState<'p> {
                         return Err(ParserError::UnmatchedEntity(Some(kind), "Pre"));
                     },
                     offset: start,
-                    length: self.utf16_offset - start,
+                    length: self.utf16_offset - start - (if has_trailing_newline { 1 } else { 0 }),
                 });
-                if self.parsed_string.content.ends_with('\n') {
-                    // Usually, there will be a newline in the end of the code block.
-                    // We want to take it into consideration when performing collapsing.
-                    self.prev_block_margin = 1;
-                }
+
                 self.push_block(PARAGRAPH_MARGIN);
             }
             Tag::List(_) => {
@@ -476,5 +480,19 @@ End"#;
         let raw = r#"This is a [link](invalid)"#;
         let parsed = parse(raw);
         assert_eq!(parsed.content, raw);
+    }
+
+    #[test]
+    fn test_codeblock_only() {
+        let raw = r#"```
+// line 1
+// line 2
+```"#;
+        let expected_content = r#"// line 1
+// line 2"#;
+        let parsed = parse(raw);
+
+        assert_eq!(parsed.content, expected_content);
+        assert_eq!(parsed.entities[0].length, 19);
     }
 }
