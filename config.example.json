@@ -1,0 +1,13 @@
+{
+    "openaiAPIKey": "sk-************************************************",
+    "botToken": "8888888888:***********************************",
+    "conversationLimit": 16,
+    "databasePath": "/telegpt/telegpt.sqlite",
+    "adminUsernames": [
+        "cyandev",
+        "withExtendedLifetime"
+    ],
+    "i18n": {
+        "resetPrompt": "Your conversation has been reset."
+    }
+}
