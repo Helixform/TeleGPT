@@ -147,6 +147,46 @@ async fn handle_retry_action(
     true
 }
 
+async fn handle_show_raw_action(
+    bot: Bot,
+    query: CallbackQuery,
+    session_mgr: SessionManager,
+) -> bool {
+    let history_msg_id: Option<i64> = query
+        .data
+        .as_ref()
+        .and_then(|data| data.strip_prefix("/show_raw:"))
+        .and_then(|id_str| id_str.parse().ok());
+    if history_msg_id.is_none() {
+        return false;
+    }
+    let history_msg_id = history_msg_id.unwrap();
+
+    let message = query.message;
+    if message.is_none() {
+        return false;
+    }
+    let message = message.unwrap();
+    let chat_id = message.chat.id;
+
+    let history_message = session_mgr.with_mut_session(chat_id.to_string(), |session| {
+        session.get_history_message(history_msg_id)
+    });
+
+    match history_message {
+        Some(history_message) => {
+            let _ = bot
+                .edit_message_text(chat_id, message.id, history_message.content)
+                .await;
+        }
+        None => {
+            let _ = bot.send_message(chat_id, "The message is stale.").await;
+        }
+    }
+
+    true
+}
+
 async fn actually_handle_chat_message(
     bot: Bot,
     reply_to_msg: Option<Message>,
@@ -186,15 +226,65 @@ async fn actually_handle_chat_message(
     // Record stats and add the reply to history.
     let reply_result = match result {
         Ok(res) => {
-            session_mgr.add_message_to_session(chat_id.clone(), user_msg);
-            session_mgr.add_message_to_session(
-                chat_id.clone(),
-                ChatCompletionRequestMessageArgs::default()
-                    .role(Role::Assistant)
-                    .content(res.content)
-                    .build()
-                    .unwrap(),
-            );
+            let reply_history_message = session_mgr.with_mut_session(chat_id.clone(), |session| {
+                session.prepare_history_message(
+                    ChatCompletionRequestMessageArgs::default()
+                        .role(Role::Assistant)
+                        .content(&res.content)
+                        .build()
+                        .unwrap(),
+                )
+            });
+
+            let need_fallback = if config.renders_markdown {
+                let parsed_content = markdown::parse(&res.content);
+                #[cfg(debug_assertions)]
+                {
+                    debug!(
+                        "rendered Markdown contents: {}\ninto: {:#?}",
+                        res.content, parsed_content
+                    );
+                }
+                let mut edit_message_text = bot.edit_message_text(
+                    chat_id.to_owned(),
+                    sent_progress_msg.id,
+                    parsed_content.content,
+                );
+                if !parsed_content.entities.is_empty() {
+                    let show_raw_button = InlineKeyboardButton::callback(
+                        "Show Raw Contents",
+                        format!("/show_raw:{}", reply_history_message.id),
+                    );
+                    edit_message_text.entities = Some(parsed_content.entities);
+                    edit_message_text.reply_markup =
+                        Some(InlineKeyboardMarkup::default().append_row([show_raw_button]));
+                }
+                if let Err(first_trial_err) = edit_message_text.await {
+                    // TODO: test if the error is related to Markdown before
+                    // fallback to raw contents.
+                    error!(
+                        "failed to send message (will fallback to raw contents): {}",
+                        first_trial_err
+                    );
+                    true
+                } else {
+                    false
+                }
+            } else {
+                true
+            };
+
+            if need_fallback {
+                bot.edit_message_text(chat_id.to_owned(), sent_progress_msg.id, &res.content)
+                    .await?;
+            }
+
+            session_mgr.with_mut_session(chat_id.clone(), |session| {
+                let user_history_msg = session.prepare_history_message(user_msg);
+                session.add_history_message(user_history_msg);
+                session.add_history_message(reply_history_message);
+            });
+
             // TODO: maybe we need to handle the case that `reply_to_msg` is `None`.
             if let Some(from_username) = reply_to_msg
                 .as_ref()
@@ -291,34 +381,6 @@ async fn stream_model_result(
         last_response.token_usage =
             openai_client::estimate_tokens(&last_response.content) + estimated_prompt_tokens;
 
-        if config.renders_markdown {
-            let parsed_content = markdown::parse(&last_response.content);
-            #[cfg(debug_assertions)]
-            {
-                debug!(
-                    "rendered Markdown contents: {}\ninto: {:#?}",
-                    last_response.content, parsed_content
-                );
-            }
-            if let Err(first_trial_err) = bot
-                .edit_message_text(chat_id.to_owned(), editing_msg.id, parsed_content.content)
-                .entities(parsed_content.entities)
-                .await
-            {
-                // TODO: test if the error is related to Markdown before
-                // fallback to raw contents.
-                error!(
-                    "failed to send message (will fallback to raw contents): {}",
-                    first_trial_err
-                );
-            } else {
-                return Ok(last_response);
-            }
-        }
-
-        bot.edit_message_text(chat_id.to_owned(), editing_msg.id, &last_response.content)
-            .await?;
-
         return Ok(last_response);
     }
 
@@ -365,8 +427,8 @@ impl Module for Chat {
             )
             .branch(
                 Update::filter_callback_query()
-                    .filter_async(handle_retry_action)
-                    .endpoint(noop_handler),
+                    .branch(dptree::filter_async(handle_retry_action).endpoint(noop_handler))
+                    .branch(dptree::filter_async(handle_show_raw_action).endpoint(noop_handler)),
             )
     }
 
