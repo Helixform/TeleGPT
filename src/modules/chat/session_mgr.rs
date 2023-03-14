@@ -31,10 +31,6 @@ impl SessionManager {
         self.with_mut_session(key, |session| session.reset());
     }
 
-    pub fn add_message_to_session(&self, key: String, msg: Message) {
-        self.with_mut_session(key, |session| session.add_message(msg));
-    }
-
     pub fn get_history_messages(&self, key: &str) -> Vec<Message> {
         self.with_mut_inner(|inner| {
             inner
@@ -53,15 +49,7 @@ impl SessionManager {
         self.with_mut_session(key, |session| session.swap_pending_message(msg))
     }
 
-    fn with_mut_inner<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&mut SessionManagerInner) -> R,
-    {
-        let mut inner_mut = self.inner.lock().unwrap();
-        f(&mut inner_mut)
-    }
-
-    fn with_mut_session<F, R>(&self, key: String, f: F) -> R
+    pub fn with_mut_session<F, R>(&self, key: String, f: F) -> R
     where
         F: FnOnce(&mut Session) -> R,
     {
@@ -72,6 +60,14 @@ impl SessionManager {
                 .or_insert(Session::new(inner.config.clone()));
             f(session_mut)
         })
+    }
+
+    fn with_mut_inner<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut SessionManagerInner) -> R,
+    {
+        let mut inner_mut = self.inner.lock().unwrap();
+        f(&mut inner_mut)
     }
 }
 
