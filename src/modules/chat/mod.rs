@@ -16,15 +16,15 @@ use futures::StreamExt as FuturesStreamExt;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::dptree::di::DependencySupplier;
 use teloxide::prelude::*;
-use teloxide::types::{BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Me};
+use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup, Me};
 
 use crate::{
     config::SharedConfig,
     dispatcher::noop_handler,
-    module_mgr::Module,
+    module_mgr::{Command, Module},
     modules::{admin::MemberManager, stats::StatsManager},
     types::HandlerResult,
-    utils::{dptree_ext, StreamExt},
+    utils::StreamExt,
 };
 use braille::BrailleProgress;
 use openai_client::ChatModelResult;
@@ -389,10 +389,11 @@ async fn stream_model_result(
 
 async fn reset_session(
     bot: Bot,
-    chat_id: ChatId,
+    msg: Message,
     session_mgr: SessionManager,
     config: SharedConfig,
 ) -> HandlerResult {
+    let chat_id = msg.chat.id;
     session_mgr.reset_session(chat_id.to_string());
     let _ = bot.send_message(chat_id, &config.i18n.reset_prompt).await;
     Ok(())
@@ -411,7 +412,7 @@ impl Module for Chat {
         Ok(())
     }
 
-    fn handler_chain(
+    fn filter_handler(
         &self,
     ) -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription> {
         dptree::entry()
@@ -419,10 +420,6 @@ impl Module for Chat {
                 Update::filter_message()
                     .filter_map(|msg: Message| msg.text().map(|text| MessageText(text.to_owned())))
                     .map(|msg: Message| msg.chat.id)
-                    .branch(
-                        dptree::filter_map(dptree_ext::command_filter("reset"))
-                            .endpoint(reset_session),
-                    )
                     .branch(dptree::filter_async(handle_chat_message).endpoint(noop_handler)),
             )
             .branch(
@@ -432,7 +429,11 @@ impl Module for Chat {
             )
     }
 
-    fn commands(&self) -> Vec<BotCommand> {
-        vec![BotCommand::new("reset", "Reset the current session")]
+    fn commands(&self) -> Vec<Command> {
+        vec![Command::new(
+            "reset",
+            "Reset the current session",
+            dptree::endpoint(reset_session),
+        )]
     }
 }

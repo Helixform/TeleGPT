@@ -52,10 +52,10 @@ fn extract_command_args<'i>(input: &'i str, cmd: &str, username: &str) -> Option
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CommandArgs(pub String);
 
-pub fn command_filter(cmd: &'static str) -> impl Fn(Message, Me) -> Option<CommandArgs> {
+pub fn command_filter(cmd: String) -> impl Fn(Message, Me) -> Option<CommandArgs> {
     move |msg: Message, me: Me| {
         let text = msg.text()?;
-        extract_command_args(text, cmd, me.username()).map(|a| CommandArgs(a.to_owned()))
+        extract_command_args(text, &cmd, me.username()).map(|a| CommandArgs(a.to_owned()))
     }
 }
 

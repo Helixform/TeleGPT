@@ -5,15 +5,14 @@ use std::sync::Arc;
 use anyhow::Error;
 use teloxide::dptree::di::DependencySupplier;
 use teloxide::prelude::*;
-use teloxide::types::BotCommand;
 
 use crate::{
     config::SharedConfig,
     database::DatabaseManager,
-    module_mgr::Module,
+    module_mgr::{Command, Module},
     modules::prefs::PreferencesManager,
-    types::{HandlerResult, TeloxideHandler},
-    utils::dptree_ext::{command_filter, CommandArgs},
+    types::HandlerResult,
+    utils::dptree_ext::CommandArgs,
 };
 pub(crate) use member_mgr::MemberManager;
 
@@ -189,17 +188,12 @@ impl Module for Admin {
         Ok(())
     }
 
-    fn handler_chain(&self) -> TeloxideHandler {
-        dptree::entry().branch(
-            Update::filter_message()
-                .branch(dptree::filter_map(command_filter("set_public")).endpoint(set_public))
-                .branch(dptree::filter_map(command_filter("add_member")).endpoint(add_member))
-                .branch(dptree::filter_map(command_filter("del_member")).endpoint(delete_member)),
-        )
-    }
-
-    fn commands(&self) -> Vec<BotCommand> {
+    fn commands(&self) -> Vec<Command> {
         // Don't reveal admin commands to other users.
-        vec![]
+        vec![
+            Command::new("set_public", "", dptree::endpoint(set_public)).hidden(),
+            Command::new("add_member", "", dptree::endpoint(add_member)).hidden(),
+            Command::new("del_member", "", dptree::endpoint(delete_member)).hidden(),
+        ]
     }
 }

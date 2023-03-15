@@ -4,17 +4,41 @@ use std::future::Future;
 
 use anyhow::Error;
 use teloxide::prelude::*;
-use teloxide::types::BotCommand;
 
 use crate::types::TeloxideHandler;
+
+pub struct Command {
+    pub command: String,
+    pub description: String,
+    pub handler: TeloxideHandler,
+    pub is_hidden: bool,
+}
+
+impl Command {
+    pub fn new(command: &str, description: &str, handler: TeloxideHandler) -> Self {
+        Self {
+            command: command.to_owned(),
+            description: description.to_owned(),
+            handler,
+            is_hidden: false,
+        }
+    }
+
+    pub fn hidden(mut self) -> Self {
+        self.is_hidden = true;
+        self
+    }
+}
 
 #[async_trait]
 pub trait Module {
     async fn register_dependency(&mut self, dep_map: &mut DependencyMap) -> Result<(), Error>;
 
-    fn handler_chain(&self) -> TeloxideHandler;
+    fn filter_handler(&self) -> TeloxideHandler {
+        dptree::entry()
+    }
 
-    fn commands(&self) -> Vec<BotCommand> {
+    fn commands(&self) -> Vec<Command> {
         vec![]
     }
 }
