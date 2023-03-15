@@ -119,6 +119,10 @@ pub struct I18nStrings {
     /// JSON key: `notAllowedPrompt`
     #[serde(default = "default_not_allowed_prompt", rename = "notAllowedPrompt")]
     pub not_allowed_prompt: String,
+    /// A text to display to let user input the prompt for a Dall-E request.
+    /// JSON key: `dallePrompt`
+    #[serde(default = "default_dalle_prompt", rename = "dallePrompt")]
+    pub dalle_prompt: String,
 }
 
 macro_rules! define_defaults {
@@ -156,4 +160,5 @@ define_defaults!(I18nStrings {
     api_error_prompt: String = "Hmm, something went wrong...".to_owned(),
     reset_prompt: String = "\u{26A0} Session is reset!".to_owned(),
     not_allowed_prompt: String = "Sadly, you are not allowed to use this bot currently.".to_owned(),
+    dalle_prompt: String = "What do you want to paint? Please reply this message.".to_owned(),
 });

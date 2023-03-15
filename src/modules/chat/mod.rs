@@ -22,7 +22,8 @@ use crate::{
     config::SharedConfig,
     dispatcher::noop_handler,
     module_mgr::Module,
-    modules::{admin::MemberManager, stats::StatsManager},
+    modules::admin::{check_user_permission, MemberManager},
+    modules::stats::StatsManager,
     types::HandlerResult,
     utils::{dptree_ext, StreamExt},
 };
@@ -51,6 +52,10 @@ async fn handle_chat_message(
     if text.starts_with('/') {
         // Let other modules to process the command.
         return false;
+    }
+
+    if !check_user_permission(&bot, &msg, &member_mgr, &config).await {
+        return true;
     }
 
     let sender_username = msg

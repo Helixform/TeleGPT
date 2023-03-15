@@ -12,7 +12,7 @@ use crate::{
     database::{DatabaseManager, FileDatabaseProvider, InMemDatabaseProvider},
     dispatcher::build_dispatcher,
     module_mgr::ModuleManager,
-    modules::{admin::Admin, chat::Chat, prefs::Prefs, stats::Stats},
+    modules::{admin::Admin, chat::Chat, dalle::DallE, prefs::Prefs, stats::Stats},
     types::HandlerResult,
 };
 
@@ -49,6 +49,7 @@ pub async fn run(config: SharedConfig) {
     module_mgr.register_module(Admin::new(db_mgr.clone()));
     module_mgr.register_module(Stats::new(db_mgr.clone()));
     module_mgr.register_module(Chat);
+    module_mgr.register_module(DallE);
 
     info!("Initializing bot...");
     let bot = match init_bot(&config, &mut module_mgr).await {

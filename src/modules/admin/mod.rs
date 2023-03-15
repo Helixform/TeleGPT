@@ -1,3 +1,4 @@
+mod handler_filter;
 mod member_mgr;
 
 use std::sync::Arc;
@@ -15,6 +16,7 @@ use crate::{
     types::{HandlerResult, TeloxideHandler},
     utils::dptree_ext::{command_filter, CommandArgs},
 };
+pub(crate) use handler_filter::check_user_permission;
 pub(crate) use member_mgr::MemberManager;
 
 pub(crate) struct Admin {
