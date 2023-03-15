@@ -10,11 +10,12 @@ TeleGPT is a Telegram bot based on [**teloxide**](https://github.com/teloxide/te
 
 ## Features
 
-🦀 **Lightning fast** with pure Rust codebase.<br>
-📢 **All types of chat** (private and group) supports.<br>
-🚀 **Live streaming tokens** to your message bubble.<br>
-💸 **Token usage** statistic recording and queryable via commands.<br>
-⚙️ **Fully customizable** with file-based configuration.<br>
+🦀 **Lightning fast** with pure Rust codebase.  
+📢 **All types of chat** (private and group) supports.  
+🚀 **Live streaming tokens** to your message bubble.  
+⌨️ **Telegram-flavoured Markdown** rendering supports.  
+💸 **Token usage** statistic recording and queryable via commands.  
+⚙️ **Fully customizable** with file-based configuration.  
 ✋ **Admin features** (Beta) and user access control supports.
 
 ## Getting TeleGPT
