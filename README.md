@@ -22,32 +22,32 @@ TeleGPT is a Telegram bot based on [**teloxide**](https://github.com/teloxide/te
 
 ### Docker
 
-We recommend you to use the prebuilt docker image, it is published through GitHub Container Registry by GitHub Action. Currently, Linux & x86 machines are supported.
+We recommend you to use the prebuilt docker image when deploying a dedicated server, it is published through GitHub Container Registry by GitHub Action. Currently, machines with amd64 architecture are supported.
 
-1. Sign in to GitHub Container Registry (needed if unauthorized when pull)
+1. Sign in to GitHub Container Registry (needed if unauthorized when pull):
 
 ```shell
 docker login -u your_github_username -p your_personal_access_token https://ghcr.io
 ```
 
-2. Create the config.json
+2. Create a `config.json` file with the template:
 
 ```shell
 cp config.json.example config.json
 ```
 
-Following the instructions below to fill tokens in the config.json.
+Follow the instructions below to fill in tokens in `config.json`.
 
-- Get Telegram Bot tokens: [Continue Here](https://core.telegram.org/bots/tutorial)
-- Get OpenAI API tokens: [Continue Here](https://platform.openai.com/account/api-keys)
+- Get Telegram Bot tokens: [https://core.telegram.org/bots/tutorial](https://core.telegram.org/bots/tutorial)
+- Get OpenAI API tokens: [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)
 
-3. Start the docker container
+3. Start the docker container:
 
 ```shell
 docker-compose up -d # start the container
 ```
 
-For more commands:
+Other commands you may find useful:
 
 ```shell
 docker-compose logs -f # check the logs, press ctrl+c to stop viewing
@@ -57,7 +57,7 @@ docker-compose pull # pull the latest image
 
 ### Download from release
 
-We recommend you to download the pre-built binary directly from the [releases](https://github.com/IcyStudio/TeleGPT/releases) page. Currently, Linux and macOS (Intel and Apple Silicon) hosts are supported.
+To deploy or test in-house, you can download the pre-built binary directly from the [releases](https://github.com/IcyStudio/TeleGPT/releases) page. Currently, Linux and macOS (Intel and Apple Silicon) hosts are supported.
 
 ### Build from source
 
