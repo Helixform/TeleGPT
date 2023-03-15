@@ -20,6 +20,41 @@ TeleGPT is a Telegram bot based on [**teloxide**](https://github.com/teloxide/te
 
 ## Getting TeleGPT
 
+### Docker
+
+We recommend you to use the prebuilt docker image, it is published through GitHub Container Registry by GitHub Action. Currently, Linux & x86 machines are supported.
+
+1. Sign in to GitHub Container Registry (needed if unauthorized when pull)
+
+```shell
+docker login -u your_github_username -p your_personal_access_token https://ghcr.io
+```
+
+2. Create the config.json
+
+```shell
+cp config.json.example config.json
+```
+
+Following the instructions below to fill tokens in the config.json.
+
+- Get Telegram Bot tokens: [Continue Here](https://core.telegram.org/bots/tutorial)
+- Get OpenAI API tokens: [Continue Here](https://platform.openai.com/account/api-keys)
+
+3. Start the docker container
+
+```shell
+docker-compose up -d # start the container
+```
+
+For more commands:
+
+```shell
+docker-compose logs -f # check the logs, press ctrl+c to stop viewing
+docker-compose down # stop the container
+docker-compose pull # pull the latest image
+```
+
 ### Download from release
 
 We recommend you to download the pre-built binary directly from the [releases](https://github.com/IcyStudio/TeleGPT/releases) page. Currently, Linux and macOS (Intel and Apple Silicon) hosts are supported.
