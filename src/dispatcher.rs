@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use crate::{
     module_mgr::ModuleManager,
     types::{HandlerResult, TeloxideDispatcher},
-    utils::HandlerExt,
+    utils::{dptree_ext::command_filter, HandlerExt},
 };
 
 fn can_respond_group_message(me: &User, msg: &Message) -> bool {
@@ -104,10 +104,21 @@ pub(crate) async fn build_dispatcher(
         .await?;
     let dep_map = dep_map_holder.lock().await.dep_map.take().unwrap();
 
+    // Build command handler chain.
+    let mut command_handler = Some(Update::filter_message());
+    module_mgr.with_all_modules(|m| {
+        let mut new_command_handler = command_handler.take().unwrap();
+        for command in m.commands() {
+            new_command_handler = new_command_handler
+                .branch(dptree::filter_map(command_filter(command.command)).chain(command.handler));
+        }
+        command_handler.replace(new_command_handler);
+    });
+
     // Build handler chain.
     let mut biz_handler = Some(dptree::entry());
     module_mgr.with_all_modules(|m| {
-        let new_biz_handler = biz_handler.take().unwrap().branch(m.handler_chain());
+        let new_biz_handler = biz_handler.take().unwrap().branch(m.filter_handler());
         biz_handler.replace(new_biz_handler);
     });
     let handler = dptree::entry()
@@ -116,6 +127,7 @@ pub(crate) async fn build_dispatcher(
                 .filter_async(message_filter)
                 .endpoint(noop_handler),
         ) // Pre-handler and filter for message updates.
+        .branch(command_handler.unwrap()) // Command handlers.
         .branch(biz_handler.unwrap()) // Core business handlers.
         .branch(dptree::endpoint(default_handler)) // Fallback handler.
         .post_chain(dptree::endpoint(noop_handler)); // For future extensions.

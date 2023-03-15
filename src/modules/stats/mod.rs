@@ -3,12 +3,12 @@ mod stats_mgr;
 use std::fmt::Write;
 
 use anyhow::Error;
-use teloxide::dispatching::DpHandlerDescription;
 use teloxide::prelude::*;
-use teloxide::types::BotCommand;
 
 use crate::{
-    database::DatabaseManager, module_mgr::Module, types::HandlerResult, utils::dptree_ext,
+    database::DatabaseManager,
+    module_mgr::{Command, Module},
+    types::HandlerResult,
 };
 pub(crate) use stats_mgr::StatsManager;
 
@@ -49,20 +49,11 @@ impl Module for Stats {
         Ok(())
     }
 
-    fn handler_chain(
-        &self,
-    ) -> Handler<'static, DependencyMap, HandlerResult, DpHandlerDescription> {
-        dptree::entry().branch(
-            Update::filter_message()
-                .filter_map(dptree_ext::command_filter("stats"))
-                .endpoint(handle_show_stats),
-        )
-    }
-
-    fn commands(&self) -> Vec<BotCommand> {
-        vec![BotCommand::new(
+    fn commands(&self) -> Vec<Command> {
+        vec![Command::new(
             "stats",
             "Show the token usage and other stats",
+            dptree::endpoint(handle_show_stats),
         )]
     }
 }

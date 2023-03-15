@@ -5,7 +5,10 @@
 //! [`run`] function to start the bot server.
 
 use anyhow::Error;
-use teloxide::{prelude::*, types::MenuButton};
+use teloxide::{
+    prelude::*,
+    types::{BotCommand, MenuButton},
+};
 
 use crate::{
     config::{Config, SharedConfig},
@@ -18,7 +21,14 @@ use crate::{
 
 async fn update_menu(bot: Bot, module_mgr: &mut ModuleManager) -> HandlerResult {
     let mut commands = vec![];
-    module_mgr.with_all_modules(|m| commands.extend(m.commands().into_iter()));
+    module_mgr.with_all_modules(|m| {
+        commands.extend(
+            m.commands()
+                .into_iter()
+                .filter(|command| !command.is_hidden)
+                .map(|command| BotCommand::new(command.command, command.description)),
+        )
+    });
     Ok(bot.set_my_commands(commands).await.and(Ok(()))?)
 }
 
