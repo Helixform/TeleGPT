@@ -86,6 +86,11 @@ pub struct Config {
     #[serde(default = "default_conversation_limit", rename = "conversationLimit")]
     pub conversation_limit: u64,
 
+    /// The maximum number of tokens allowed for the generated answer.
+    /// JSON key: `maxTokens`
+    #[serde(default, rename = "maxTokens")]
+    pub max_tokens: Option<u16>,
+
     /// A boolean value that indicates whether to parse and render the
     /// markdown contents. When set to `false`, the raw contents returned
     /// from OpenAI will be displayed. This is default to `false`.

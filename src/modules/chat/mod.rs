@@ -2,7 +2,6 @@
 
 mod braille;
 mod markdown;
-mod openai_client;
 mod session;
 mod session_mgr;
 
@@ -11,7 +10,6 @@ use std::time::Duration;
 
 use anyhow::Error;
 use async_openai::types::{ChatCompletionRequestMessage, ChatCompletionRequestMessageArgs, Role};
-use async_openai::Client as OpenAIClient;
 use futures::StreamExt as FuturesStreamExt;
 use teloxide::dispatching::DpHandlerDescription;
 use teloxide::dptree::di::DependencySupplier;
@@ -22,12 +20,12 @@ use crate::{
     config::SharedConfig,
     dispatcher::noop_handler,
     module_mgr::{Command, Module},
+    modules::openai::{ChatModelResult, OpenAIClient},
     modules::{admin::MemberManager, stats::StatsManager},
     types::HandlerResult,
     utils::StreamExt,
 };
 use braille::BrailleProgress;
-use openai_client::ChatModelResult;
 pub(crate) use session::Session;
 pub(crate) use session_mgr::SessionManager;
 
@@ -328,9 +326,9 @@ async fn stream_model_result(
     openai_client: OpenAIClient,
     config: &SharedConfig,
 ) -> Result<ChatModelResult, Error> {
-    let estimated_prompt_tokens = openai_client::estimate_prompt_tokens(&msgs);
+    let estimated_prompt_tokens = openai_client.estimate_prompt_tokens(&msgs);
 
-    let stream = openai_client::request_chat_model(&openai_client, msgs).await?;
+    let stream = openai_client.request_chat_model(msgs).await?;
     let mut throttled_stream =
         stream.throttle_buffer::<Vec<_>>(Duration::from_millis(config.stream_throttle_interval));
 
@@ -379,7 +377,7 @@ async fn stream_model_result(
         // TODO: OpenAI currently doesn't support to give the token usage
         // in stream mode. Therefore we need to estimate it locally.
         last_response.token_usage =
-            openai_client::estimate_tokens(&last_response.content) + estimated_prompt_tokens;
+            openai_client.estimate_tokens(&last_response.content) + estimated_prompt_tokens;
 
         return Ok(last_response);
     }
@@ -407,7 +405,6 @@ impl Module for Chat {
         let config: Arc<SharedConfig> = dep_map.get();
 
         dep_map.insert(SessionManager::new(config.as_ref().clone()));
-        dep_map.insert(openai_client::new_client(&config.openai_api_key));
 
         Ok(())
     }
