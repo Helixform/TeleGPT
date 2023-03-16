@@ -8,6 +8,7 @@ use teloxide::types::{Me, MediaKind, MessageCommon, MessageEntityKind, MessageKi
 use tokio::sync::Mutex;
 
 use crate::{
+    conversation::ConversationManager,
     module_mgr::ModuleManager,
     types::{HandlerResult, TeloxideDispatcher},
     utils::{dptree_ext::command_filter, HandlerExt},
@@ -102,7 +103,12 @@ pub(crate) async fn build_dispatcher(
             }
         })
         .await?;
-    let dep_map = dep_map_holder.lock().await.dep_map.take().unwrap();
+    let mut dep_map = dep_map_holder.lock().await.dep_map.take().unwrap();
+
+    // Build conversation manager and handler chain.
+    let conversation_mgr = ConversationManager::new();
+    let conversation_handler = conversation_mgr.make_handler();
+    dep_map.insert(conversation_mgr);
 
     // Build command handler chain.
     let mut command_handler = Some(Update::filter_message());
@@ -127,6 +133,7 @@ pub(crate) async fn build_dispatcher(
                 .filter_async(message_filter)
                 .endpoint(noop_handler),
         ) // Pre-handler and filter for message updates.
+        .branch(conversation_handler) // Conversation handlers.
         .branch(command_handler.unwrap()) // Command handlers.
         .branch(biz_handler.unwrap()) // Core business handlers.
         .branch(dptree::endpoint(default_handler)) // Fallback handler.
