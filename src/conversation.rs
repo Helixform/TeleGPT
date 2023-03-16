@@ -34,6 +34,7 @@ where
         }
     }
 
+    #[allow(dead_code)]
     pub fn update_state<F, R>(&self, updater: F) -> R
     where
         F: FnOnce(&mut S) -> R,
@@ -42,6 +43,7 @@ where
         updater(&mut *state)
     }
 
+    #[allow(dead_code)]
     pub fn end(&self) {
         if let Some(owner) = self.owner.upgrade() {
             owner.end_conversation(self.chat_id, self.user_id)
@@ -53,6 +55,7 @@ impl<S> Conversation<S>
 where
     S: Clone,
 {
+    #[allow(dead_code)]
     pub fn get_state(&self) -> S {
         self.state.lock().unwrap().clone()
     }
@@ -93,6 +96,7 @@ impl ConversationManager {
         }
     }
 
+    #[allow(dead_code)]
     pub fn start_conversation<S>(
         &self,
         chat_id: ChatId,
@@ -135,6 +139,7 @@ impl ConversationManager {
         });
     }
 
+    #[allow(dead_code)]
     pub fn end_conversation(&self, chat_id: ChatId, user_id: Option<UserId>) {
         self.with_mut_inner(|inner| {
             if let HashMapEntry::Occupied(mut chat_entry) = inner.chats.entry(chat_id) {
@@ -171,7 +176,7 @@ impl ConversationManager {
                                         .and_then(|user| chat.user_conversations.get(&user.id.0))
                                 }
                             })
-                            .map(|handler| handler.clone())
+                            .cloned()
                     });
 
                     if let Some(handler) = handler {
