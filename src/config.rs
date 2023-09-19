@@ -56,6 +56,12 @@ pub struct Config {
     /// JSON key: `openaiAPIKey`
     #[serde(rename = "openaiAPIKey")]
     pub openai_api_key: String,
+
+    /// The API Endpoint to be used.
+    /// JSON key: `openaiAPIEndpoint`
+    #[serde(rename = "openaiAPIEndpoint")]
+    pub openai_api_endpoint: String,
+
     /// The token of your Telegram bot.
     /// JSON key: `botToken`
     #[serde(rename = "botToken")]

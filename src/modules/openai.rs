@@ -74,7 +74,9 @@ impl Module for OpenAI {
         let config: Arc<SharedConfig> = dep_map.get();
 
         let openai_client = OpenAIClient {
-            client: Client::new().with_api_key(&config.openai_api_key),
+            client: Client::new()
+                .with_api_key(&config.openai_api_key)
+                .with_api_base(&config.openai_api_endpoint),
             config: config.as_ref().clone(),
         };
         dep_map.insert(openai_client);
