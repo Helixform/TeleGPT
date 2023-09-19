@@ -1,5 +1,6 @@
 {
     "openaiAPIKey": "sk-************************************************",
+    "openaiAPIEndpoint": "https://api.openai.com/v1",
     "botToken": "8888888888:***********************************",
     "conversationLimit": 16,
     "databasePath": "/telegpt/data/telegpt.sqlite",
