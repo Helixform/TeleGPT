@@ -1,5 +1,6 @@
 {
     "openaiAPIKey": "sk-************************************************",
+    "openaiGptModel": "gpt-3.5-turbo",
     "botToken": "8888888888:***********************************",
     "conversationLimit": 16,
     "databasePath": "/telegpt/data/telegpt.sqlite",

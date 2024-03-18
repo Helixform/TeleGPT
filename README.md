@@ -76,6 +76,7 @@ The configuration is described in this [doc](https://icystudio.github.io/TeleGPT
 ```json
 {
   "openaiAPIKey": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "openaiGptModel": "gpt-3.5-turbo",
   "botToken": "8888888888:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
   "adminUsernames": ["cyandev"],
   "conversationLimit": 30,

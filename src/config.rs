@@ -61,6 +61,12 @@ pub struct Config {
     #[serde(rename = "botToken")]
     pub telegram_bot_token: String,
 
+    /// The openai model your want to use in chat.
+    /// Value is default to "gpt-3.5-turbo".
+    /// JSON key: `openaiGptModel`
+    #[serde(default = "default_openai_gpt_model", rename = "openaiGptModel")]
+    pub openai_gpt_model: String,
+
     /// A timeout in seconds for waiting for the OpenAI server response.
     /// JSON key: `openaiAPITimeout`
     #[serde(default = "default_openai_api_timeout", rename = "openaiAPITimeout")]
@@ -155,6 +161,7 @@ define_defaults! {
     stream_throttle_interval: u64 = 500,
     conversation_limit: u64 = 20,
     renders_markdown: bool = false,
+    openai_gpt_model: String = "gpt-3.5-turbo".to_owned(),
 }
 
 define_defaults!(I18nStrings {
