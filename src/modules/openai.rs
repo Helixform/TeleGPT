@@ -30,7 +30,7 @@ impl OpenAIClient {
     ) -> Result<ChatModelStream, Error> {
         let client = &self.client;
         let req = CreateChatCompletionRequestArgs::default()
-            .model("gpt-3.5-turbo")
+            .model(self.config.openai_gpt_model.clone())
             .temperature(0.6)
             .max_tokens(self.config.max_tokens.unwrap_or(4096))
             .messages(msgs)
